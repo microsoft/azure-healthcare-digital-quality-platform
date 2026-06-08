@@ -13,7 +13,7 @@ opentelemetry-sdk
 prompty
 prompty[azure]==0.1.40
 pydantic
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 PyJWT[crypto]
 requests
 uvicorn

@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+# Providers stack azd manifest.
+#
+# Provisions a dedicated resource group from providers/_infra/main.bicep.
+# main.bicep names the RG "rg-${environmentName}", so an azd env named
+# "dq-providers" lands in "rg-dq-providers".
+# Backend and frontend are deployed via _scripts/build-and-push.ps1 +
+# kubectl apply on the cluster spun up here. The orchestrator-specific
+# postprovision wiring used by the submitters stack is intentionally not
+# enabled, since providers does not run an orchestrator. The providers
+# postprovision hook only rewrites providers/backend/.env and
+# providers/frontend/.env.production with the latest azd outputs.
+
+name: dq-providers
+metadata:
+  template: dq-providers@1.0.0
+
+infra:
+  provider: bicep
+  path: _infra
+  module: main
+
+services: {}
+
+hooks:
+  preprovision:
+    windows:
+      shell: pwsh
+      run: ./_infra/hooks/preprovision.ps1
+      continueOnError: false
+      interactive: true
+
+    posix:
+      shell: sh
+      run: ./_infra/hooks/preprovision.sh
+      continueOnError: false
+      interactive: true
+
+  postprovision:
+    windows:
+      shell: pwsh
+      run: ./_infra/hooks/postprovision.ps1
+      continueOnError: false
+      interactive: true
+
+    posix:
+      shell: sh
+      run: ./_infra/hooks/postprovision.sh
+      continueOnError: false
+      interactive: true

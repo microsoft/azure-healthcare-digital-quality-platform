@@ -1,0 +1,32 @@
+[
+  {
+    "id": "tag-shared-savings",
+    "name": "Shared Savings Program",
+    "color": "#0072B2",
+    "description": "Measures relevant to ACOs reporting under MSSP."
+  },
+  {
+    "id": "tag-universal",
+    "name": "Universal Foundation",
+    "color": "#009E73",
+    "description": "CMS Adult Universal Foundation measure set spanning multiple programs."
+  },
+  {
+    "id": "tag-hospital-quality",
+    "name": "Hospital Quality Reporting",
+    "color": "#CC79A7",
+    "description": "Hospital inpatient and outpatient quality reporting measures."
+  },
+  {
+    "id": "tag-mips",
+    "name": "MIPS / QPP",
+    "color": "#E69F00",
+    "description": "Quality Payment Program — Merit-based Incentive Payment System."
+  },
+  {
+    "id": "tag-acute-care",
+    "name": "Acute Care",
+    "color": "#D55E00",
+    "description": "Measures evaluated during acute or inpatient encounters."
+  }
+]

@@ -1,0 +1,52 @@
+# Per-Dockerfile ignore file for providers/backend/Dockerfile.
+# Build context is the repo root; backend image needs only
+# providers/backend/ and _data/.
+
+# Version control + IDE
+.git/
+.github/
+.history/
+.vscode/
+.venv/
+.azure/
+.speckit/
+.pytest_cache/
+
+# Python build artifacts
+**/__pycache__/
+**/*.pyc
+
+# Other stacks (none of them are needed in the providers/backend image)
+submitters/
+receivers/
+platform/
+
+# Sibling services in the providers stack
+providers/frontend/
+providers/_infra/
+
+# Root support dirs not needed for the backend image
+docs/
+images/
+evals/
+evaluations/
+tests/
+measures/
+scripts/
+fabric/
+
+# Sub-paths within providers/backend that the image does not need
+providers/backend/k8s/
+providers/backend/__pycache__/
+
+# Local artifacts
+tmp/
+**/*.log
+**/*.db
+**/*.sqlite
+
+# Workspace meta
+*.code-workspace
+node_modules/
+dist/
+build/

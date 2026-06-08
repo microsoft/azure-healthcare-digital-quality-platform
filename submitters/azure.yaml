@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: dq-submitters
+metadata:
+  template: dq-submitters@1.0.0
+
+infra:
+  provider: bicep
+  path: _infra
+  module: main
+
+services: {}
+
+hooks:
+  preprovision:
+    windows:
+      shell: pwsh
+      run: ./_infra/hooks/preprovision.ps1
+      continueOnError: false
+      interactive: true
+
+    posix:
+      shell: sh
+      run: ./_infra/hooks/preprovision.sh
+      continueOnError: false
+      interactive: true
+
+  postprovision:
+    windows:
+      shell: pwsh
+      run: ./_infra/hooks/postprovision.ps1
+      continueOnError: false
+      interactive: true
+
+    posix:
+      shell: sh
+      run: ./_infra/hooks/postprovision.sh
+      continueOnError: false
+      interactive: true

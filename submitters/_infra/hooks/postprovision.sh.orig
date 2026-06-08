@@ -1,0 +1,232 @@
+#!/bin/bash
+set -e
+
+# Post-provision hook for AKS setup
+
+echo "🔧 Post-provision setup..."
+
+# Get environment values from azd
+echo ""
+echo "📝 Loading environment values..."
+eval $(azd env get-values | sed 's/^/export /')
+
+AKS_NAME=$(echo $AKS_CLUSTER_NAME | tr -d '"')
+RG_NAME=$(echo $AZURE_RESOURCE_GROUP_NAME | tr -d '"')
+CONTAINER_REG=$(echo $CONTAINER_REGISTRY | tr -d '"')
+STORAGE_URL=$(echo $AZURE_STORAGE_ACCOUNT_URL | tr -d '"')
+MCP_IDENTITY_CLIENT_ID=$(echo $MCP_SERVER_IDENTITY_CLIENT_ID | tr -d '"')
+AGENT_IDENTITY_APP_ID_VALUE=$(echo $AGENT_IDENTITY_APP_ID | tr -d '"')
+if [ -n "$AGENT_IDENTITY_APP_ID_VALUE" ]; then
+  IDENTITY_CLIENT_ID_FOR_POD="$AGENT_IDENTITY_APP_ID_VALUE"
+else
+  IDENTITY_CLIENT_ID_FOR_POD="$MCP_IDENTITY_CLIENT_ID"
+fi
+SERVICE_ACCOUNT_SUBJECT="system:serviceaccount:dq:mcp-agent-sa"
+FOUNDRY_ENDPOINT=$(echo $FOUNDRY_PROJECT_ENDPOINT | tr -d '"')
+FOUNDRY_MODEL=$(echo $FOUNDRY_MODEL_DEPLOYMENT_NAME | tr -d '"')
+EMBEDDING_MODEL=$(echo $EMBEDDING_MODEL_DEPLOYMENT_NAME | tr -d '"')
+FOUNDRY_API_KEY_VALUE=$(echo ${FOUNDRY_API_KEY:-} | tr -d '"')
+AZURE_OPENAI_API_KEY_VALUE=$(echo ${AZURE_OPENAI_API_KEY:-} | tr -d '"')
+AI_CQL_EXCLUDE_WORKLOAD_IDENTITY_VALUE=$(echo ${AI_CQL_EXCLUDE_WORKLOAD_IDENTITY:-false} | tr -d '"')
+if [ -z "$AI_CQL_EXCLUDE_WORKLOAD_IDENTITY_VALUE" ]; then
+  AI_CQL_EXCLUDE_WORKLOAD_IDENTITY_VALUE="false"
+fi
+COSMOS_ENDPOINT=$(echo $COSMOSDB_ENDPOINT | tr -d '"')
+COSMOS_DATABASE=$(echo $COSMOSDB_DATABASE_NAME | tr -d '"')
+SEARCH_ENDPOINT=$(echo $AZURE_SEARCH_ENDPOINT | tr -d '"')
+SEARCH_INDEX=$(echo $AZURE_SEARCH_INDEX_NAME | tr -d '"')
+
+echo "  AKS Cluster: $AKS_NAME"
+echo "  Resource Group: $RG_NAME"
+echo "  Container Registry: $CONTAINER_REG"
+echo "  Foundry Endpoint: $FOUNDRY_ENDPOINT"
+echo "  Foundry Model: $FOUNDRY_MODEL"
+echo "  Embedding Model: $EMBEDDING_MODEL"
+echo "  AI CQL Exclude Workload Identity: $AI_CQL_EXCLUDE_WORKLOAD_IDENTITY_VALUE"
+echo "  CosmosDB Endpoint: $COSMOS_ENDPOINT"
+echo "  CosmosDB Database: $COSMOS_DATABASE"
+echo "  AI Search Endpoint: $SEARCH_ENDPOINT"
+echo "  AI Search Index: $SEARCH_INDEX"
+
+if [ -z "$AKS_NAME" ] || [ -z "$RG_NAME" ]; then
+  echo "⚠️  Could not find AKS cluster name or resource group"
+  exit 1
+fi
+
+# Get AKS credentials
+echo ""
+echo "🔑 Getting AKS credentials..."
+az aks get-credentials --resource-group "$RG_NAME" --name "$AKS_NAME" --overwrite-existing --admin
+echo "✅ AKS credentials configured"
+
+# Grant current user AKS RBAC access
+echo ""
+echo "🔐 Granting AKS RBAC access..."
+USER_ID=$(az ad signed-in-user show --query id -o tsv)
+AKS_RESOURCE_ID=$(az aks show --resource-group "$RG_NAME" --name "$AKS_NAME" --query id -o tsv)
+az role assignment create --role "Azure Kubernetes Service RBAC Cluster Admin" --assignee "$USER_ID" --scope "$AKS_RESOURCE_ID" 2>/dev/null || true
+echo "✅ RBAC access granted"
+
+# Attach ACR to AKS
+echo ""
+echo "🔗 Attaching ACR to AKS..."
+ACR_NAME=$(echo "$CONTAINER_REG" | sed 's/\.azurecr\.io$//')
+az aks update --resource-group "$RG_NAME" --name "$AKS_NAME" --attach-acr "$ACR_NAME"
+echo "✅ ACR attached"
+
+# Configure Kubernetes deployment files
+echo ""
+echo "📄 Configuring Kubernetes manifests..."
+CONFIGURED_MANIFEST_PATH="./tmp/orchestrator-deployment-configured.yaml"
+mkdir -p ./tmp
+
+# Read and configure deployment template
+sed -e "s|\${CONTAINER_REGISTRY}|$CONTAINER_REG|g" \
+    -e "s|\${IMAGE_TAG}|latest|g" \
+    -e "s|\${AZURE_STORAGE_ACCOUNT_URL}|$STORAGE_URL|g" \
+  -e "s|\${AZURE_CLIENT_ID}|$IDENTITY_CLIENT_ID_FOR_POD|g" \
+  -e "s|\${MCP_SERVER_IDENTITY_CLIENT_ID}|$MCP_IDENTITY_CLIENT_ID|g" \
+  -e "s|\${AGENT_IDENTITY_APP_ID}|$IDENTITY_CLIENT_ID_FOR_POD|g" \
+    -e "s|\${FOUNDRY_PROJECT_ENDPOINT}|$FOUNDRY_ENDPOINT|g" \
+    -e "s|\${FOUNDRY_MODEL_DEPLOYMENT_NAME}|$FOUNDRY_MODEL|g" \
+    -e "s|\${EMBEDDING_MODEL_DEPLOYMENT_NAME}|$EMBEDDING_MODEL|g" \
+    -e "s|\${AI_CQL_EXCLUDE_WORKLOAD_IDENTITY}|$AI_CQL_EXCLUDE_WORKLOAD_IDENTITY_VALUE|g" \
+    -e "s|\${COSMOSDB_ENDPOINT}|$COSMOS_ENDPOINT|g" \
+    -e "s|\${COSMOSDB_DATABASE_NAME}|$COSMOS_DATABASE|g" \
+    -e "s|\${AZURE_SEARCH_ENDPOINT}|$SEARCH_ENDPOINT|g" \
+    -e "s|\${AZURE_SEARCH_INDEX_NAME}|$SEARCH_INDEX|g" \
+  ./k8s/orchestrator-deployment.yaml.template > "$CONFIGURED_MANIFEST_PATH"
+if [ ! -s "$CONFIGURED_MANIFEST_PATH" ]; then
+  echo "❌ Configured manifest was generated empty at $CONFIGURED_MANIFEST_PATH"
+  exit 1
+fi
+echo "  ✅ Configured $CONFIGURED_MANIFEST_PATH"
+
+# Create/update optional secret for API key fallback auth.
+echo ""
+echo "🔒 Configuring optional API key secret..."
+kubectl create namespace dq --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+if [ -n "$FOUNDRY_API_KEY_VALUE" ] || [ -n "$AZURE_OPENAI_API_KEY_VALUE" ]; then
+  secret_args=()
+  if [ -n "$FOUNDRY_API_KEY_VALUE" ]; then
+    secret_args+=(--from-literal=FOUNDRY_API_KEY="$FOUNDRY_API_KEY_VALUE")
+  fi
+  if [ -n "$AZURE_OPENAI_API_KEY_VALUE" ]; then
+    secret_args+=(--from-literal=AZURE_OPENAI_API_KEY="$AZURE_OPENAI_API_KEY_VALUE")
+  fi
+  kubectl create secret generic orchestrator-secrets -n dq "${secret_args[@]}" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  echo "✅ Updated secret orchestrator-secrets"
+else
+  echo "ℹ️ No FOUNDRY_API_KEY/AZURE_OPENAI_API_KEY provided; secret not updated"
+fi
+
+# Create federated identity for workload identity
+echo ""
+echo "🔐 Configuring workload identity..."
+OIDC_ISSUER=$(az aks show --resource-group "$RG_NAME" --name "$AKS_NAME" --query "oidcIssuerProfile.issuerUrl" -o tsv)
+IDENTITY_NAME="id-mcp-${AKS_NAME#aks-}"
+
+# Reconcile federated credential so issuer/subject stay valid after cluster/service account changes
+EXISTING_CRED_JSON=$(az identity federated-credential show --name orchestrator-federated --identity-name "$IDENTITY_NAME" --resource-group "$RG_NAME" -o json 2>/dev/null || true)
+NEEDS_UPDATE=true
+
+if [ -n "$EXISTING_CRED_JSON" ]; then
+  EXISTING_ISSUER=$(az identity federated-credential show --name orchestrator-federated --identity-name "$IDENTITY_NAME" --resource-group "$RG_NAME" --query issuer -o tsv 2>/dev/null || true)
+  EXISTING_SUBJECT=$(az identity federated-credential show --name orchestrator-federated --identity-name "$IDENTITY_NAME" --resource-group "$RG_NAME" --query subject -o tsv 2>/dev/null || true)
+  EXISTING_AUDIENCE=$(az identity federated-credential show --name orchestrator-federated --identity-name "$IDENTITY_NAME" --resource-group "$RG_NAME" --query audiences[0] -o tsv 2>/dev/null || true)
+
+  if [ "$EXISTING_ISSUER" = "$OIDC_ISSUER" ] && [ "$EXISTING_SUBJECT" = "$SERVICE_ACCOUNT_SUBJECT" ] && [ "$EXISTING_AUDIENCE" = "api://AzureADTokenExchange" ]; then
+    NEEDS_UPDATE=false
+  fi
+fi
+
+if [ "$NEEDS_UPDATE" = true ]; then
+  if [ -n "$EXISTING_CRED_JSON" ]; then
+    az identity federated-credential delete \
+      --name orchestrator-federated \
+      --identity-name "$IDENTITY_NAME" \
+      --resource-group "$RG_NAME"
+  fi
+
+  az identity federated-credential create \
+    --name orchestrator-federated \
+    --identity-name "$IDENTITY_NAME" \
+    --resource-group "$RG_NAME" \
+    --issuer "$OIDC_ISSUER" \
+    --subject "$SERVICE_ACCOUNT_SUBJECT" \
+    --audience "api://AzureADTokenExchange"
+  echo "✅ Federated identity credential reconciled"
+else
+  echo "✅ Federated identity credential already matches AKS issuer and service account"
+fi
+
+# Build and push container image
+echo ""
+echo "🐳 Building and pushing container image..."
+export CONTAINER_REGISTRY="$CONTAINER_REG"
+./scripts/build-and-push.sh
+
+# Deploy to Kubernetes
+echo ""
+echo "🚀 Deploying to Kubernetes..."
+kubectl apply -f "$CONFIGURED_MANIFEST_PATH"
+
+# Wait for deployment to be ready
+echo ""
+echo "⏳ Waiting for deployment to be ready..."
+kubectl rollout status deployment/orchestrator -n dq --timeout=300s
+
+# Provision AI Search index & ingest task instructions
+echo ""
+echo "📚 Provisioning AI Search index & ingesting task instructions..."
+try_run_ai_search() {
+  if [[ -n "$AZURE_SEARCH_SERVICE_NAME" ]]; then
+    subscription_id=$(az account show --query id -o tsv)
+    search_scope="/subscriptions/${subscription_id}/resourceGroups/${AZURE_RESOURCE_GROUP_NAME}/providers/Microsoft.Search/searchServices/${AZURE_SEARCH_SERVICE_NAME}"
+    echo "  🔐 Assigning Search roles to signed-in user..."
+    az role assignment create --assignee "$(az ad signed-in-user show --query id -o tsv)" --role "Search Service Contributor" --scope "$search_scope" >/dev/null 2>&1 || true
+    az role assignment create --assignee "$(az ad signed-in-user show --query id -o tsv)" --role "Search Index Data Contributor" --scope "$search_scope" >/dev/null 2>&1 || true
+  fi
+
+  export AZURE_SEARCH_ENDPOINT=$(echo $AZURE_SEARCH_ENDPOINT | tr -d '"')
+  export AZURE_SEARCH_INDEX_NAME=$(echo $AZURE_SEARCH_INDEX_NAME | tr -d '"')
+  export FOUNDRY_PROJECT_ENDPOINT=$(echo $FOUNDRY_PROJECT_ENDPOINT | tr -d '"')
+  export EMBEDDING_MODEL_DEPLOYMENT_NAME=$(echo $EMBEDDING_MODEL_DEPLOYMENT_NAME | tr -d '"')
+
+  echo "  📦 Ensuring python dependencies..."
+  python -m pip install --disable-pip-version-check --quiet -r ./src/requirements.txt >/dev/null 2>&1 || true
+
+  echo "  🚀 Running ingestion script..."
+  python ./scripts/ingest_task_instructions.py
+}
+
+if ! try_run_ai_search; then
+  echo "  ⚠️ AI Search provisioning/ingestion failed. Rerun manually: python ./scripts/ingest_task_instructions.py"
+fi
+
+# Seed Quality Measures Workbench Cosmos containers
+echo ""
+echo "🌱 Seeding Quality Measures Workbench data into Cosmos DB..."
+export COSMOSDB_ENDPOINT="$COSMOS_ENDPOINT"
+export COSMOSDB_DATABASE_NAME="$COSMOS_DATABASE"
+export COSMOSDB_CATALOG_COLLECTION="${COSMOSDB_CATALOG_COLLECTION:-catalog}"
+export COSMOSDB_COHORTS_COLLECTION="${COSMOSDB_COHORTS_COLLECTION:-cohorts}"
+if ! python ./scripts/seed_workbench_data.py; then
+  echo "  ⚠️ Workbench seed failed. Rerun manually: python ./scripts/seed_workbench_data.py"
+fi
+
+# Generate test configuration
+echo ""
+echo "📝 Generating test configuration..."
+./scripts/generate-test-config.sh
+
+echo ""
+echo "═══════════════════════════════════════════════════════════════"
+echo "🎉 Post-provision setup complete!"
+echo "═══════════════════════════════════════════════════════════════"
+echo ""
+echo "📝 Run integration tests:"
+echo "   python _tests/test_apim_mcp_connection.py --use-az-token"
+echo ""
+
+exit 0

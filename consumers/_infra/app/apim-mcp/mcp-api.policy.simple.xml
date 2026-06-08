@@ -1,0 +1,40 @@
+<!--
+    SIMPLIFIED MCP API POLICY - FOR DEBUGGING
+    This is a simplified version to test if the basic MCP infrastructure works
+-->
+<policies>
+    <inbound>
+        <base />
+        <!-- Check for Authorization header -->
+        <check-header name="Authorization" failed-check-httpcode="401" failed-check-error-message="Not authorized" ignore-case="false" />
+        
+        <!-- For testing, just validate that we have a Bearer token that starts with "mcp_access_token" -->
+        <set-variable name="authHeader" value="@(context.Request.Headers.GetValueOrDefault("Authorization", ""))" />
+        <set-variable name="bearerToken" value="@{
+            string authHeader = (string)context.Variables.GetValueOrDefault("authHeader", "");
+            return authHeader.StartsWith("Bearer ") ? authHeader.Substring(7) : "";
+        }" />
+        
+        <choose>
+            <when condition="@(!((string)context.Variables.GetValueOrDefault("bearerToken", "")).StartsWith("mcp_access_token"))">
+                <return-response>
+                    <set-status code="401" reason="Unauthorized" />
+                    <set-header name="WWW-Authenticate" exists-action="override">
+                        <value>Bearer error="invalid_token", error_description="Token must start with mcp_access_token"</value>
+                    </set-header>
+                    <set-body>{"error": "invalid_token", "message": "Invalid or expired access token"}</set-body>
+                </return-response>
+            </when>
+        </choose>
+        
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

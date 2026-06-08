@@ -1,0 +1,7 @@
+####Docker test
+POST http://localhost:5000/api/patient
+Content-Type: application/json
+
+{
+    "patient_id": "P001"
+}

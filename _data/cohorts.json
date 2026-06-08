@@ -1,0 +1,54 @@
+[
+  {
+    "id": "cohort-cms122-diabetes",
+    "name": "CMS122 — Diabetes HbA1c Sample",
+    "description": "Sample patients used to evaluate CMS122v11 Diabetes Hemoglobin A1c Poor Control. Includes qualifying (poor and good control), non-qualifying (no HbA1c), and missing-encounter scenarios.",
+    "memberIds": [
+      "p-cms122-x01",
+      "p-cms122-001",
+      "p-cms122-002",
+      "p-cms122-003"
+    ],
+    "tags": ["tag-shared-savings", "tag-mips"],
+    "measureIds": ["CMS122v11"]
+  },
+  {
+    "id": "cohort-cms165-htn",
+    "name": "CMS165 — Hypertension BP Control Sample",
+    "description": "Sample patients used to evaluate CMS165v9 Controlling High Blood Pressure. Includes controlled, uncontrolled, no-BP, and missing-demographics scenarios.",
+    "memberIds": [
+      "p-cms165-x01",
+      "p-cms165-001",
+      "p-cms165-002",
+      "p-cms165-003"
+    ],
+    "tags": ["tag-universal", "tag-mips"],
+    "measureIds": ["CMS165v9"]
+  },
+  {
+    "id": "cohort-epc02-ob",
+    "name": "ePC02 — Severe Obstetric Complications Sample",
+    "description": "Sample inpatient delivery encounters used to evaluate ePC02 severe obstetric complications.",
+    "memberIds": [
+      "p-epc02-x01",
+      "p-epc02-001",
+      "p-epc02-002",
+      "p-epc02-003"
+    ],
+    "tags": ["tag-hospital-quality", "tag-acute-care"],
+    "measureIds": ["ePC02"]
+  },
+  {
+    "id": "cohort-mssp-app-plus",
+    "name": "MSSP APP Plus Demonstration",
+    "description": "Combined cohort spanning all three sample measure populations for end-to-end MSSP APP Plus reporting demonstrations.",
+    "memberIds": [
+      "p-cms122-001",
+      "p-cms122-002",
+      "p-cms165-001",
+      "p-cms165-002"
+    ],
+    "tags": ["tag-shared-savings"],
+    "measureIds": ["CMS122v11", "CMS165v9"]
+  }
+]

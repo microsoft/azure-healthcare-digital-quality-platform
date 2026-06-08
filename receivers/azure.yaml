@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+# Receivers stack azd manifest.
+#
+# Provisions a dedicated resource group from receivers/_infra/main.bicep.
+# main.bicep names the RG "rg-${environmentName}", so an azd env named
+# "dq-receivers" lands in "rg-dq-receivers".
+# Backend, frontend and orchestrator are deployed via build-and-push +
+# kubectl apply on the cluster spun up here. azd up only provisions
+# infra; app deploys are an explicit follow-up step (mirrors providers).
+
+name: dq-receivers
+metadata:
+  template: dq-receivers@1.0.0
+
+infra:
+  provider: bicep
+  path: _infra
+  module: main
+
+services: {}
+
+hooks:
+  preprovision:
+    windows:
+      shell: pwsh
+      run: ./_infra/hooks/preprovision.ps1
+      continueOnError: false
+      interactive: true
+
+    posix:
+      shell: sh
+      run: ./_infra/hooks/preprovision.sh
+      continueOnError: false
+      interactive: true
+
+  postprovision:
+    windows:
+      shell: pwsh
+      run: ./_infra/hooks/postprovision.ps1
+      continueOnError: false
+      interactive: true
+    
+    posix:
+      shell: sh
+      run: ./_infra/hooks/postprovision.sh
+      continueOnError: false
+      interactive: true

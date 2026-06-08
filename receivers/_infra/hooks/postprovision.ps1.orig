@@ -1,0 +1,263 @@
+#!/usr/bin/env pwsh
+# Post-provision hook for AKS setup
+
+Write-Host "🔧 Post-provision setup..." -ForegroundColor Cyan
+
+# Get environment values from azd
+Write-Host "`n📝 Loading environment values..." -ForegroundColor Cyan
+$envValues = azd env get-values | ConvertFrom-StringData -Delimiter '='
+
+$aksName = $envValues.AKS_CLUSTER_NAME.Trim('"')
+$rgName = $envValues.AZURE_RESOURCE_GROUP_NAME.Trim('"')
+$containerRegistry = $envValues.CONTAINER_REGISTRY.Trim('"')
+$storageUrl = $envValues.AZURE_STORAGE_ACCOUNT_URL.Trim('"')
+$mcpIdentityClientId = $envValues.MCP_SERVER_IDENTITY_CLIENT_ID.Trim('"')
+$foundryProjectEndpoint = $envValues.FOUNDRY_PROJECT_ENDPOINT.Trim('"')
+$foundryModelDeploymentName = $envValues.FOUNDRY_MODEL_DEPLOYMENT_NAME.Trim('"')
+$embeddingModelDeploymentName = $envValues.EMBEDDING_MODEL_DEPLOYMENT_NAME.Trim('"')
+$foundryApiKey = if ($envValues.ContainsKey("FOUNDRY_API_KEY")) { $envValues.FOUNDRY_API_KEY.Trim('"') } else { "" }
+$azureOpenAiApiKey = if ($envValues.ContainsKey("AZURE_OPENAI_API_KEY")) { $envValues.AZURE_OPENAI_API_KEY.Trim('"') } else { "" }
+$aiCqlExcludeWorkloadIdentity = if ($envValues.ContainsKey("AI_CQL_EXCLUDE_WORKLOAD_IDENTITY")) { $envValues.AI_CQL_EXCLUDE_WORKLOAD_IDENTITY.Trim('"') } else { "false" }
+if (-not $aiCqlExcludeWorkloadIdentity) {
+  $aiCqlExcludeWorkloadIdentity = "false"
+}
+$cosmosDbEndpoint = $envValues.COSMOSDB_ENDPOINT.Trim('"')
+$cosmosDbDatabaseName = $envValues.COSMOSDB_DATABASE_NAME.Trim('"')
+$azureSearchEndpoint = $envValues.AZURE_SEARCH_ENDPOINT.Trim('"')
+$azureSearchIndexName = $envValues.AZURE_SEARCH_INDEX_NAME.Trim('"')
+# Fabric configuration
+$fabricEnabled = $envValues.FABRIC_ENABLED.Trim('"')
+$fabricCapacityName = $envValues.FABRIC_CAPACITY_NAME.Trim('"')
+$fabricOneLakeDfsEndpoint = $envValues.FABRIC_ONELAKE_DFS_ENDPOINT.Trim('"')
+$fabricOneLakeBlobEndpoint = $envValues.FABRIC_ONELAKE_BLOB_ENDPOINT.Trim('"')
+
+Write-Host "  AKS Cluster: $aksName" -ForegroundColor White
+Write-Host "  Resource Group: $rgName" -ForegroundColor White
+Write-Host "  Container Registry: $containerRegistry" -ForegroundColor White
+Write-Host "  Foundry Endpoint: $foundryProjectEndpoint" -ForegroundColor White
+Write-Host "  Foundry Model: $foundryModelDeploymentName" -ForegroundColor White
+Write-Host "  Embedding Model: $embeddingModelDeploymentName" -ForegroundColor White
+Write-Host "  AI CQL Exclude Workload Identity: $aiCqlExcludeWorkloadIdentity" -ForegroundColor White
+Write-Host "  CosmosDB Endpoint: $cosmosDbEndpoint" -ForegroundColor White
+Write-Host "  CosmosDB Database: $cosmosDbDatabaseName" -ForegroundColor White
+Write-Host "  AI Search Endpoint: $azureSearchEndpoint" -ForegroundColor White
+Write-Host "  AI Search Index: $azureSearchIndexName" -ForegroundColor White
+Write-Host "  Fabric Enabled: $fabricEnabled" -ForegroundColor White
+Write-Host "  Fabric Capacity: $fabricCapacityName" -ForegroundColor White
+Write-Host "  OneLake DFS Endpoint: $fabricOneLakeDfsEndpoint" -ForegroundColor White
+
+if (-not $aksName -or -not $rgName) {
+  Write-Host "⚠️  Could not find AKS cluster name or resource group" -ForegroundColor Yellow
+  exit 1
+}
+
+# Get AKS credentials
+Write-Host "`n🔑 Getting AKS credentials..." -ForegroundColor Cyan
+az aks get-credentials --resource-group $rgName --name $aksName --overwrite-existing --admin
+Write-Host "✅ AKS credentials configured" -ForegroundColor Green
+
+# Grant current user AKS RBAC access
+Write-Host "`n🔐 Granting AKS RBAC access..." -ForegroundColor Cyan
+$userId = az ad signed-in-user show --query id -o tsv
+$aksResourceId = az aks show --resource-group $rgName --name $aksName --query id -o tsv
+az role assignment create --role "Azure Kubernetes Service RBAC Cluster Admin" --assignee-object-id $userId --assignee-principal-type User --scope $aksResourceId 2>$null | Out-Null
+
+$canManageNamespaces = kubectl auth can-i get namespaces --all-namespaces
+if ($canManageNamespaces -ne "yes") {
+  Write-Host "❌ Current user does not yet have AKS RBAC permissions to manage namespaces." -ForegroundColor Red
+  Write-Host "   User ID: $userId" -ForegroundColor Yellow
+  Write-Host "   Cluster: $aksName" -ForegroundColor Yellow
+  Write-Host "   Try re-running 'azd provision' in a few minutes to allow RBAC propagation." -ForegroundColor Yellow
+  exit 1
+}
+
+Write-Host "✅ RBAC access verified" -ForegroundColor Green
+
+# Attach ACR to AKS
+Write-Host "`n🔗 Attaching ACR to AKS..." -ForegroundColor Cyan
+$acrName = $containerRegistry -replace '\.azurecr\.io$', ''
+az aks update --resource-group $rgName --name $aksName --attach-acr $acrName
+Write-Host "✅ ACR attached" -ForegroundColor Green
+
+# Configure Kubernetes deployment files
+Write-Host "`n📄 Configuring Kubernetes manifests..." -ForegroundColor Cyan
+$configuredManifestPath = "./tmp/orchestrator-deployment-configured.yaml"
+New-Item -ItemType Directory -Path "./tmp" -Force | Out-Null
+
+# Read and configure deployment template
+$deploymentTemplate = Get-Content -Path "./k8s/orchestrator-deployment.yaml.template" -Raw
+$tenantId = $envValues.AZURE_TENANT_ID.Trim('"')
+$agentIdentityAppId = $envValues.AGENT_IDENTITY_APP_ID.Trim('"')
+$identityClientIdForPod = if ($agentIdentityAppId) { $agentIdentityAppId } else { $mcpIdentityClientId }
+$serviceAccountSubject = "system:serviceaccount:dq:mcp-agent-sa"
+$configuredDeployment = $deploymentTemplate `
+  -replace '\$\{CONTAINER_REGISTRY\}', $containerRegistry `
+  -replace '\$\{IMAGE_TAG\}', 'latest' `
+  -replace '\$\{AZURE_STORAGE_ACCOUNT_URL\}', $storageUrl `
+  -replace '\$\{AZURE_CLIENT_ID\}', $identityClientIdForPod `
+  -replace '\$\{AZURE_TENANT_ID\}', $tenantId `
+  -replace '\$\{MCP_SERVER_IDENTITY_CLIENT_ID\}', $mcpIdentityClientId `
+  -replace '\$\{AGENT_IDENTITY_APP_ID\}', $identityClientIdForPod `
+  -replace '\$\{AGENT_IDENTITY_BLUEPRINT_APP_ID\}', '' `
+  -replace '\$\{AGENT_IDENTITY_DISPLAY_NAME\}', 'MCP Agent' `
+  -replace '\$\{FOUNDRY_PROJECT_ENDPOINT\}', $foundryProjectEndpoint `
+  -replace '\$\{FOUNDRY_MODEL_DEPLOYMENT_NAME\}', $foundryModelDeploymentName `
+  -replace '\$\{EMBEDDING_MODEL_DEPLOYMENT_NAME\}', $embeddingModelDeploymentName `
+  -replace '\$\{AI_CQL_EXCLUDE_WORKLOAD_IDENTITY\}', $aiCqlExcludeWorkloadIdentity `
+  -replace '\$\{COSMOSDB_ENDPOINT\}', $cosmosDbEndpoint `
+  -replace '\$\{COSMOSDB_DATABASE_NAME\}', $cosmosDbDatabaseName `
+  -replace '\$\{AZURE_SEARCH_ENDPOINT\}', $azureSearchEndpoint `
+  -replace '\$\{AZURE_SEARCH_INDEX_NAME\}', $azureSearchIndexName `
+  -replace '\$\{FABRIC_ENABLED\}', $fabricEnabled `
+  -replace '\$\{FABRIC_ENDPOINT\}', $fabricOneLakeDfsEndpoint `
+  -replace '\$\{FABRIC_WORKSPACE_ID\}', '' `
+  -replace '\$\{FABRIC_ONTOLOGY_NAME\}', 'agent-ontology' `
+  -replace '\$\{FABRIC_ONELAKE_DFS_ENDPOINT\}', $fabricOneLakeDfsEndpoint `
+  -replace '\$\{FABRIC_ONELAKE_BLOB_ENDPOINT\}', $fabricOneLakeBlobEndpoint `
+  -replace '\$\{FABRIC_LAKEHOUSE_NAME\}', 'mcpontologies' `
+  -replace '\$\{FABRIC_ONTOLOGY_PATH\}', 'Files/ontology' `
+  -replace '\$\{ONTOLOGY_CONTAINER_NAME\}', 'ontologies'
+$configuredDeployment | Out-File -FilePath $configuredManifestPath -Encoding utf8
+if (-not (Test-Path $configuredManifestPath) -or (Get-Item $configuredManifestPath).Length -eq 0) {
+  throw "Configured manifest was generated empty at $configuredManifestPath"
+}
+Write-Host "  ✅ Configured $configuredManifestPath" -ForegroundColor Green
+
+Write-Host "`n🔒 Configuring optional API key secret..." -ForegroundColor Cyan
+kubectl create namespace dq --dry-run=client -o yaml | kubectl apply -f - | Out-Null
+if ($foundryApiKey -or $azureOpenAiApiKey) {
+  $secretArgs = @("create", "secret", "generic", "orchestrator-secrets", "-n", "dq", "--dry-run=client", "-o", "yaml")
+  if ($foundryApiKey) {
+    $secretArgs += "--from-literal=FOUNDRY_API_KEY=$foundryApiKey"
+  }
+  if ($azureOpenAiApiKey) {
+    $secretArgs += "--from-literal=AZURE_OPENAI_API_KEY=$azureOpenAiApiKey"
+  }
+  $secretYaml = & kubectl @secretArgs
+  $secretYaml | kubectl apply -f - | Out-Null
+  Write-Host "✅ Updated secret orchestrator-secrets" -ForegroundColor Green
+}
+else {
+  Write-Host "ℹ️ No FOUNDRY_API_KEY/AZURE_OPENAI_API_KEY provided; secret not updated" -ForegroundColor Yellow
+}
+
+# Create federated identity for workload identity
+Write-Host "`n🔐 Configuring workload identity..." -ForegroundColor Cyan
+$oidcIssuer = az aks show --resource-group $rgName --name $aksName --query "oidcIssuerProfile.issuerUrl" -o tsv
+$identityName = "id-mcp-" + ($aksName -replace '^aks-', '')
+
+# Reconcile federated credential so issuer/subject stay valid after cluster/service account changes
+$existingCredJson = az identity federated-credential show --name orchestrator-federated --identity-name $identityName --resource-group $rgName --output json 2>$null
+$needsUpdate = $true
+if ($existingCredJson) {
+  $existingCred = $existingCredJson | ConvertFrom-Json
+  $existingAudience = if ($existingCred.audiences -and $existingCred.audiences.Count -gt 0) { $existingCred.audiences[0] } else { "" }
+  $needsUpdate = ($existingCred.issuer -ne $oidcIssuer) -or ($existingCred.subject -ne $serviceAccountSubject) -or ($existingAudience -ne "api://AzureADTokenExchange")
+}
+
+if ($needsUpdate) {
+  if ($existingCredJson) {
+    az identity federated-credential delete `
+      --name orchestrator-federated `
+      --identity-name $identityName `
+      --resource-group $rgName
+  }
+
+  az identity federated-credential create `
+    --name orchestrator-federated `
+    --identity-name $identityName `
+    --resource-group $rgName `
+    --issuer $oidcIssuer `
+    --subject $serviceAccountSubject `
+    --audience "api://AzureADTokenExchange"
+  Write-Host "✅ Federated identity credential reconciled" -ForegroundColor Green
+} else {
+  Write-Host "✅ Federated identity credential already matches AKS issuer and service account" -ForegroundColor Green
+}
+
+# Build and push container image
+Write-Host "`n🐳 Building and pushing container image..." -ForegroundColor Cyan
+$env:CONTAINER_REGISTRY = $containerRegistry
+& "./scripts/build-and-push.ps1"
+
+# Deploy to Kubernetes
+Write-Host "`n🚀 Deploying to Kubernetes..." -ForegroundColor Cyan
+kubectl apply -f $configuredManifestPath
+
+# Wait for deployment to be ready
+Write-Host "`n⏳ Waiting for deployment to be ready..." -ForegroundColor Cyan
+kubectl rollout status deployment/orchestrator -n dq --timeout=300s
+
+# Provision AI Search index & ingest task instructions
+Write-Host "`n📚 Provisioning AI Search index & ingesting task instructions..." -ForegroundColor Cyan
+try {
+  # Ensure current user can create indexes (useful if running script locally)
+  $searchServiceName = $envValues.AZURE_SEARCH_SERVICE_NAME.Trim('"')
+  if ($searchServiceName) {
+    $subscriptionId = az account show --query id -o tsv
+    $searchScope = "/subscriptions/$subscriptionId/resourceGroups/$rgName/providers/Microsoft.Search/searchServices/$searchServiceName"
+
+    Write-Host "  🔐 Assigning Search roles to signed-in user..." -ForegroundColor White
+    az role assignment create --assignee $userId --role "Search Service Contributor" --scope $searchScope 2>$null | Out-Null
+    az role assignment create --assignee $userId --role "Search Index Data Contributor" --scope $searchScope 2>$null | Out-Null
+    Write-Host "  ✅ Search roles assigned (or already present)" -ForegroundColor Green
+  }
+
+  # Set environment variables for ingestion script
+  $env:AZURE_SEARCH_ENDPOINT = $azureSearchEndpoint
+  $env:AZURE_SEARCH_INDEX_NAME = $azureSearchIndexName
+  $env:FOUNDRY_PROJECT_ENDPOINT = $foundryProjectEndpoint
+  $env:EMBEDDING_MODEL_DEPLOYMENT_NAME = $embeddingModelDeploymentName
+
+  # Install required Python packages (idempotent)
+  Write-Host "  📦 Ensuring python dependencies..." -ForegroundColor White
+  python -m pip install --disable-pip-version-check --quiet -r ./src/requirements.txt 2>$null
+
+  # Run ingestion script (creates index if missing & uploads task_instructions/*.json)
+  Write-Host "  🚀 Running ingestion script..." -ForegroundColor White
+  python ./scripts/ingest_task_instructions.py
+  Write-Host "  ✅ AI Search index provisioned & task instructions ingested" -ForegroundColor Green
+}
+catch {
+  Write-Host "  ⚠️ AI Search provisioning/ingestion failed: $($_.Exception.Message)" -ForegroundColor Yellow
+  Write-Host "  👉 You can rerun manually: python ./scripts/ingest_task_instructions.py" -ForegroundColor Yellow
+}
+
+# Seed Quality Measures Workbench Cosmos containers
+Write-Host "`n🌱 Seeding Quality Measures Workbench data into Cosmos DB..." -ForegroundColor Cyan
+try {
+  $env:COSMOSDB_ENDPOINT = $cosmosDbEndpoint
+  $env:COSMOSDB_DATABASE_NAME = $cosmosDbDatabaseName
+  if (-not $env:COSMOSDB_CATALOG_COLLECTION) { $env:COSMOSDB_CATALOG_COLLECTION = "catalog" }
+  if (-not $env:COSMOSDB_COHORTS_COLLECTION) { $env:COSMOSDB_COHORTS_COLLECTION = "cohorts" }
+  python ./scripts/seed_workbench_data.py
+  Write-Host "  ✅ Workbench seed complete" -ForegroundColor Green
+}
+catch {
+  Write-Host "  ⚠️ Workbench seed failed: $($_.Exception.Message)" -ForegroundColor Yellow
+  Write-Host "  👉 You can rerun manually: python ./scripts/seed_workbench_data.py" -ForegroundColor Yellow
+}
+
+# Generate test configuration
+Write-Host "`n📝 Generating test configuration..." -ForegroundColor Cyan
+& "./scripts/generate-test-config.ps1"
+
+Write-Host "`n" -NoNewline
+Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "🎉 Post-provision setup complete!" -ForegroundColor Green
+Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+
+# Fabric IQ Setup Instructions
+if ($fabricEnabled -eq "true") {
+  Write-Host "`n🧠 Microsoft Fabric IQ Setup:" -ForegroundColor Magenta
+  Write-Host "  1. Create a Fabric Workspace in the Fabric portal" -ForegroundColor White
+  Write-Host "  2. Create a Lakehouse named 'mcpontologies'" -ForegroundColor White
+  Write-Host "  3. Upload ontologies to OneLake:" -ForegroundColor White
+  Write-Host "     ./scripts/upload-ontologies-to-onelake.ps1 -WorkspaceId <GUID> -LakehouseName mcpontologies" -ForegroundColor Yellow
+  Write-Host "  4. Configure Fabric IQ with the uploaded ontologies" -ForegroundColor White
+  Write-Host "  5. Update FABRIC_WORKSPACE_ID environment variable" -ForegroundColor White
+}
+
+Write-Host "`n📝 Run integration tests:" -ForegroundColor Cyan
+Write-Host "   python _tests/test_apim_mcp_connection.py --use-az-token" -ForegroundColor White
+Write-Host ""

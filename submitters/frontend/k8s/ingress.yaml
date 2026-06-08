@@ -1,0 +1,61 @@
+# Install nginx ingress controller (pinned to stable version):
+#   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+#   helm repo update
+#   helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+#     --namespace ingress-nginx --create-namespace \
+#     --set controller.replicaCount=1 \
+#     --wait --timeout=5m
+#
+# Install cert-manager:
+#   helm repo add jetstack https://charts.jetstack.io
+#   helm repo update
+#   helm upgrade --install cert-manager jetstack/cert-manager \
+#     --namespace cert-manager --create-namespace \
+#     --set crds.enabled=true \
+#     --wait --timeout=5m
+---
+# ClusterIssuer — Let's Encrypt production CA using HTTP-01 challenge
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: christava@microsoft.com
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - http01:
+        ingress:
+          ingressClassName: nginx
+---
+# Ingress — TLS termination for the frontend
+# Host resolves to the nginx ingress controller LoadBalancer IP via Azure DNS label:
+#   az network public-ip update --name <pip-name> --resource-group <node-rg> --dns-name dq-submitters-frontend
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend-ingress
+  namespace: dq
+  annotations:
+    cert-manager.io/cluster-issuer: selfsigned
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - dq-submitters-frontend.eastus2.cloudapp.azure.com
+    secretName: frontend-tls
+  rules:
+  - host: dq-submitters-frontend.eastus2.cloudapp.azure.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80

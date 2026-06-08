@@ -1,0 +1,69 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "${AZURE_ENV_NAME}"
+    },
+    "location": {
+      "value": "${AZURE_LOCATION}"
+    },
+    "vnetEnabled": {
+      "value": "${VNET_ENABLED=true}"
+    },
+    "apimSku": {
+      "value": "${APIM_SKU=Developer}"
+    },
+    "apimVirtualNetworkType": {
+      "value": "${APIM_VNET_MODE=External}"
+    },
+    "aksSystemNodePoolVmSize": {
+      "value": "${AKS_SYSTEM_NODEPOOL_VM_SIZE=Standard_D2s_v6}"
+    },
+    "aksSystemNodePoolName": {
+      "value": "${AKS_SYSTEM_NODEPOOL_NAME=sys3}"
+    },
+    "aksSystemNodePoolCount": {
+      "value": "${AKS_SYSTEM_NODEPOOL_COUNT=1}"
+    },
+    "enableFoundryModelDeployments": {
+      "value": "${ENABLE_FOUNDRY_MODEL_DEPLOYMENTS=true}"
+    },
+    "enableFoundryAgentsCapabilityHost": {
+      "value": "${ENABLE_FOUNDRY_AGENTS_CAPABILITY_HOST=true}"
+    },
+    "restoreFoundryAccount": {
+      "value": "${RESTORE_FOUNDRY_ACCOUNT=true}"
+    },
+    "mcpEntraApplicationDisplayName": {
+      "value": "MCP-OAuth-App"
+    },
+    "mcpEntraApplicationUniqueName": {
+      "value": "mcp-oauth-app-${AZURE_ENV_NAME}"
+    },
+    "existingEntraAppId": {
+      "value": "6441e54f-8149-487b-aac4-3a55a049a362"
+    },
+    "agentIdentityEnabled": {
+      "value": "${AGENT_IDENTITY_ENABLED=false}"
+    },
+    "developerPrincipalId": {
+      "value": "${DEVELOPER_PRINCIPAL_ID=}"
+    },
+    "developerIpAddress": {
+      "value": "${DEVELOPER_IP_ADDRESS=}"
+    },
+    "defenderEnabled": {
+      "value": "${DEFENDER_ENABLED=true}"
+    },
+    "defenderSecurityContactEmail": {
+      "value": "${DEFENDER_SECURITY_CONTACT_EMAIL=}"
+    },
+    "defenderSecurityContactPhone": {
+      "value": "${DEFENDER_SECURITY_CONTACT_PHONE=}"
+    },
+    "purviewEnabled": {
+      "value": "${PURVIEW_ENABLED=false}"
+    }
+  }
+}

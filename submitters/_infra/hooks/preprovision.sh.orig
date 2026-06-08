@@ -1,0 +1,45 @@
+#!/usr/bin/env sh
+set -eu
+
+preferred_location="${AZURE_LOCATION:-eastus2}"
+location_candidates="${preferred_location}"
+candidates="Standard_D2s_v5 Standard_D2as_v5 Standard_D2s_v4 Standard_D2as_v4 Standard_D2ds_v5 Standard_D2ads_v5 Standard_D4s_v5 Standard_D4as_v5 Standard_D4s_v4 Standard_D4as_v4 Standard_DS2_v2 Standard_B2ms Standard_B2s"
+
+printf "Checking AKS system node pool SKU availability in location: %s\n" "$preferred_location"
+
+selected_sku=""
+selected_location=""
+
+for location in $location_candidates; do
+  printf "Evaluating location '%s'...\n" "$location"
+
+  for candidate in $candidates; do
+    printf "Trying SKU '%s'...\n" "$candidate"
+
+    available_sku="$(az vm list-skus --location "$location" --resource-type virtualMachines --all --query "[?name=='$candidate' && !restrictions].name | [0]" --output tsv)"
+
+    if [ -n "$available_sku" ]; then
+      selected_sku="$candidate"
+      selected_location="$location"
+      break
+    fi
+  done
+
+  if [ -n "$selected_sku" ]; then
+    break
+  fi
+done
+
+if [ -z "$selected_sku" ]; then
+  selected_sku="Standard_D2s_v5"
+  selected_location="$preferred_location"
+  printf "Warning: No candidate SKUs are currently available in location '%s'. Falling back to preferred SKU '%s' in '%s' to surface a precise Azure capacity error.\n" "$preferred_location" "$selected_sku" "$selected_location" >&2
+else
+  printf "Selected location '%s' and AKS system node pool SKU '%s'.\n" "$selected_location" "$selected_sku"
+fi
+
+azd env set AZURE_LOCATION "$selected_location"
+printf "Set AZURE_LOCATION=%s\n" "$selected_location"
+
+azd env set AKS_SYSTEM_NODEPOOL_VM_SIZE "$selected_sku"
+printf "Set AKS_SYSTEM_NODEPOOL_VM_SIZE=%s\n" "$selected_sku"

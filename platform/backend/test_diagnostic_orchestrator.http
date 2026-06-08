@@ -1,0 +1,90 @@
+### Diagnostic Orchestrator API Test Cases
+### These test the new diagnostic orchestration endpoints
+
+# Set the base URL for the API
+@baseUrl = http://localhost:8000
+
+### Test 1: Execute Diagnostic Case - Unconstrained Mode
+POST {{baseUrl}}/api/diagnostic/case
+Content-Type: application/json
+
+{
+    "case_info": "A 45-year-old male presents to the emergency department with acute onset chest pain that started 2 hours ago. The pain is described as crushing, substernal, and radiates to the left arm. He has a history of hypertension and smoking. Vital signs show BP 150/90, HR 110, RR 20, O2 sat 96% on room air.",
+    "max_rounds": 5,
+    "execution_mode": "unconstrained"
+}
+
+### Test 2: Execute Diagnostic Case - Budget Constrained  
+POST {{baseUrl}}/api/diagnostic/case
+Content-Type: application/json
+
+{
+    "case_info": "A 72-year-old woman is brought to the hospital by her daughter for confusion and fever over the past 3 days. She has been increasingly disoriented and has difficulty recognizing family members. Temperature is 38.8°C (101.8°F), BP 100/60, HR 105. She has a history of diabetes and recent UTI treatment.",
+    "max_rounds": 8,
+    "budget_limit": 2000.0,
+    "execution_mode": "unconstrained"
+}
+
+### Test 3: Execute Diagnostic Case - Questions Only Mode
+POST {{baseUrl}}/api/diagnostic/case
+Content-Type: application/json
+
+{
+    "case_info": "A 28-year-old female presents with acute onset shortness of breath and pleuritic chest pain that began suddenly while watching TV. She recently returned from a 10-hour flight from Europe 3 days ago. She is on oral contraceptives. Vital signs: BP 110/70, HR 120, RR 24, O2 sat 91% on room air.",
+    "execution_mode": "questions_only"
+}
+
+### Test 4: Execute Diagnostic Case - Instant Mode
+POST {{baseUrl}}/api/diagnostic/case
+Content-Type: application/json
+
+{
+    "case_info": "A 65-year-old male with a history of COPD presents with worsening dyspnea, productive cough with yellow sputum, and fever for 3 days. Vital signs: T 38.5°C, BP 130/80, HR 95, RR 22, O2 sat 88% on room air.",
+    "execution_mode": "instant"
+}
+
+### Test 5: Get Case Summary (replace {case_id} with actual case ID from previous responses)
+GET {{baseUrl}}/api/diagnostic/case/{{case_id}}/summary
+
+### Test 6: Get Case Execution Traces (replace {case_id} with actual case ID)
+GET {{baseUrl}}/api/diagnostic/case/{{case_id}}/traces
+
+### Test 7: Get Agent Messages (replace {case_id} with actual case ID)
+GET {{baseUrl}}/api/diagnostic/case/{{case_id}}/agent-messages
+
+### Test 8: Health Check (verify server is running)
+GET {{baseUrl}}/
+
+### Test 9: Complex Case - Multi-system Involvement with Budget
+POST {{baseUrl}}/api/diagnostic/case
+Content-Type: application/json
+
+{
+    "case_info": "A 35-year-old woman presents with a 2-week history of joint pain affecting wrists, knees, and ankles, accompanied by a facial rash across both cheeks, fatigue, and fever. She reports hair loss and mouth ulcers. Laboratory shows ANA positive 1:640, anti-dsDNA elevated, and low complement levels C3/C4.",
+    "max_rounds": 6,
+    "budget_limit": 3500.0,
+    "execution_mode": "unconstrained"
+}
+
+### Test 10: Pediatric Case
+POST {{baseUrl}}/api/diagnostic/case
+Content-Type: application/json
+
+{
+    "case_info": "A 6-year-old boy is brought to the emergency department by his parents for high fever (39.5°C), irritability, and refusal to move his neck. He has been vomiting and developed a petechial rash on his trunk. He was previously healthy with up-to-date immunizations.",
+    "execution_mode": "unconstrained",
+    "max_rounds": 4
+}
+
+###
+# Development Notes:
+# 1. Replace {{case_id}} with actual case IDs returned from POST requests
+# 2. The API uses conditional authentication - works in development mode without auth
+# 3. Cost estimates are based on healthcare pricing with physician visits ($300) charged once per case
+# 4. Supported execution modes: "instant", "questions_only", "unconstrained" 
+#    - "instant": Diagnosis based solely on initial presentation
+#    - "questions_only": Can ask questions but no diagnostic tests
+#    - "unconstrained": Full diagnostic workup (default)
+# 5. Use budget_limit parameter (not execution_mode) to enforce cost constraints
+# 6. The orchestrator requires Azure OpenAI configuration to function properly
+# 7. Final round logic forces diagnosis when max_rounds is reached

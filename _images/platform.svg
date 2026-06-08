@@ -1,0 +1,191 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="255 0 1465 600">
+  <defs>
+    <style>
+      @keyframes pulse {
+        0% { opacity: 0; transform: translateX(-20px); }
+        50% { opacity: 1; }
+        100% { opacity: 0; transform: translateX(20px); }
+      }
+      @keyframes glow {
+        0%, 100% { filter: drop-shadow(0 0 3px #00bcf2); }
+        50% { filter: drop-shadow(0 0 8px #00bcf2); }
+      }
+      .pulse-dot { animation: pulse 1.5s ease-in-out infinite; }
+      .pulse-dot-delay1 { animation: pulse 1.5s ease-in-out 0.3s infinite; }
+      .pulse-dot-delay2 { animation: pulse 1.5s ease-in-out 0.6s infinite; }
+      @keyframes pulseV {
+        0% { opacity: 0; transform: translateY(-8px); }
+        50% { opacity: 1; }
+        100% { opacity: 0; transform: translateY(8px); }
+      }
+      .pulse-dot-v { animation: pulseV 1.5s ease-in-out infinite; }
+      .pulse-dot-v-delay1 { animation: pulseV 1.5s ease-in-out 0.3s infinite; }
+      .logo-glow { animation: glow 2s ease-in-out infinite; }
+      .apim-glow { animation: glow 2s ease-in-out infinite; filter: drop-shadow(0 0 5px #9b4dca); }
+      .title { font-family: 'Segoe UI', Arial, sans-serif; font-size: 20px; font-weight: 600; fill: #fff; }
+      .title-large { font-family: 'Segoe UI', Arial, sans-serif; font-size: 24px; font-weight: 600; fill: #fff; }
+      .label { font-family: 'Segoe UI', Arial, sans-serif; font-size: 17px; fill: #fff; }
+      .sublabel { font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; fill: #aaa; }
+      .section-label { font-family: 'Segoe UI', Arial, sans-serif; font-size: 16px; fill: #ccc; }
+      .box { rx: 8; ry: 8; }
+      .connector { stroke: #555; stroke-width: 2; fill: none; }
+      .connector-dotted { stroke: #555; stroke-width: 2; fill: none; stroke-dasharray: 5,5; }
+    </style>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#555"/>
+    </marker>
+    <marker id="arrowhead-down" markerWidth="6" markerHeight="8" refX="3" refY="7" orient="auto">
+      <polygon points="0 0, 6 0, 3 8" fill="#555"/>
+    </marker>
+    <!-- MCP Logo gradient -->
+    <linearGradient id="mcpGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6b35"/>
+      <stop offset="50%" style="stop-color:#f7931e"/>
+      <stop offset="100%" style="stop-color:#ff6b35"/>
+    </linearGradient>
+    <!-- Azure gradient -->
+    <linearGradient id="azureGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0078d4"/>
+      <stop offset="100%" style="stop-color:#00bcf2"/>
+    </linearGradient>
+    <!-- Entra gradient -->
+    <linearGradient id="entraGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0078d4"/>
+      <stop offset="100%" style="stop-color:#50e6ff"/>
+    </linearGradient>
+    <!-- Kubernetes gradient -->
+    <linearGradient id="k8sGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#326ce5"/>
+      <stop offset="100%" style="stop-color:#54a3ff"/>
+    </linearGradient>
+    <!-- APIM purple gradient -->
+    <linearGradient id="apimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#68217a"/>
+      <stop offset="100%" style="stop-color:#9b4dca"/>
+    </linearGradient>
+    <!-- Foundry gradient -->
+    <linearGradient id="foundryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#5c2d91"/>
+      <stop offset="100%" style="stop-color:#8661c5"/>
+    </linearGradient>
+
+  </defs>
+  
+  <!-- Dark Background -->
+  <rect width="1720" height="600" fill="#1a1a1a"/>
+
+  <!-- ============ AZURE HEALTHCARE DIGITAL QUALITY PLATFORM (Main Container) ============ -->
+  <rect x="275" y="25" width="1440" height="560" fill="none" stroke="#0078d4" stroke-width="2" stroke-dasharray="8,4" class="box"/>
+  <text x="995" y="50" class="title-large" text-anchor="middle">Azure Healthcare Digital Quality Platform</text>
+  <text x="995" y="74" class="section-label" text-anchor="middle">Five independently deployable stacks. One Platform.</text>
+
+  <!-- ==== STACK TILE: Consumers ==== -->
+  <g transform="translate(285, 110)">
+    <rect width="220" height="240" fill="#121212" stroke="#ec4899" stroke-width="2" class="box"/>
+    <text x="110" y="34" class="title" text-anchor="middle">Consumers</text>
+    <text x="110" y="55" class="label" text-anchor="middle">Patient-facing Intake</text>
+    <text x="110" y="75" class="label" text-anchor="middle">Sensor Data</text>
+    <line x1="14" y1="90" x2="206" y2="90" stroke="#444" stroke-width="1"/>
+    <text x="14" y="112" class="sublabel">Frontend &#183; Patients Tab</text>
+    <text x="14" y="134" class="sublabel">Backend &#183; FastAPI</text>
+    <text x="14" y="156" class="sublabel">Local 3-Measure Runner</text>
+    <line x1="14" y1="180" x2="206" y2="180" stroke="#444" stroke-width="1"/>
+    <text x="14" y="200" class="sublabel">APIM &#183; AKS &#183; Cosmos</text>
+    <text x="14" y="220" class="sublabel">Seed FHIR Bundles</text>
+  </g>
+
+  <!-- ==== STACK TILE: Providers ==== -->
+  <g transform="translate(685, 110)">
+    <rect width="220" height="240" fill="#121212" stroke="#10b981" stroke-width="2" class="box"/>
+    <text x="110" y="34" class="title" text-anchor="middle">Providers</text>
+    <text x="110" y="58" class="label" text-anchor="middle">Submit Clinical Data</text>
+    <line x1="14" y1="75" x2="206" y2="75" stroke="#444" stroke-width="1"/>
+    <text x="14" y="100" class="sublabel">Frontend &#183; Cohort Builder</text>
+    <text x="14" y="122" class="sublabel">Backend &#183; FastAPI</text>
+    <text x="14" y="144" class="sublabel">Orchestrator &#183; Bulk Uploader</text>
+    <line x1="14" y1="170" x2="206" y2="170" stroke="#444" stroke-width="1"/>
+    <text x="14" y="195" class="sublabel">APIM &#183; AKS &#183; Cosmos</text>
+  </g>
+
+  <!-- ==== STACK TILE: Submitters ==== -->
+  <g transform="translate(1085, 110)">
+    <rect width="220" height="240" fill="#121212" stroke="#3b82f6" stroke-width="2" class="box"/>
+    <text x="110" y="34" class="title" text-anchor="middle">Submitters</text>
+    <text x="110" y="55" class="label" text-anchor="middle">Execute and Submit</text>
+    <text x="110" y="75" class="label" text-anchor="middle">Measures</text>
+    <line x1="14" y1="90" x2="206" y2="90" stroke="#444" stroke-width="1"/>
+    <text x="14" y="112" class="sublabel">Frontend &#183; Job Admin, Insights</text>
+    <text x="14" y="134" class="sublabel">Backend &#183; FastAPI</text>
+    <text x="14" y="156" class="sublabel">Orchestrator &#183; Bulk Uploader</text>
+    <line x1="14" y1="180" x2="206" y2="180" stroke="#444" stroke-width="1"/>
+    <text x="14" y="200" class="sublabel">APIM &#183; AKS &#183; Cosmos</text>
+    <text x="14" y="220" class="sublabel">SQLDB &#183; Fabric</text>
+  </g>
+
+  <!-- ==== STACK TILE: Receivers ==== -->
+  <g transform="translate(1485, 110)">
+    <rect width="220" height="240" fill="#121212" stroke="#f59e0b" stroke-width="2" class="box"/>
+    <text x="110" y="34" class="title" text-anchor="middle">Receivers</text>
+    <text x="110" y="55" class="label" text-anchor="middle">Measurement Summary</text>
+    <text x="110" y="75" class="label" text-anchor="middle">&amp; Forecast Intake</text>
+    <line x1="14" y1="90" x2="206" y2="90" stroke="#444" stroke-width="1"/>
+    <text x="14" y="112" class="sublabel">Frontend &#183; PowerBI</text>
+    <text x="14" y="134" class="sublabel">Backend &#183; FastAPI</text>
+    <text x="14" y="156" class="sublabel">Orchestrator &#183; Bulk Uploader</text>
+    <line x1="14" y1="180" x2="206" y2="180" stroke="#444" stroke-width="1"/>
+    <text x="14" y="200" class="sublabel">APIM &#183; AKS &#183; Cosmos</text>
+    <text x="14" y="220" class="sublabel">SQLDB &#183; Fabric</text>
+  </g>
+
+  <!-- ==== STACK TILE: Platform tenant (thin horizontal bar under all 4 stacks) ==== -->
+  <g transform="translate(285, 480)">
+    <rect width="1420" height="80" fill="#121212" stroke="#a855f7" stroke-width="2" class="box"/>
+    <text x="710" y="34" class="title" text-anchor="middle">Platform</text>
+    <text x="710" y="60" class="label" text-anchor="middle">Analytics Intake &#183; Backend &#183; FastAPI &#183; APIM &#183; AKS &#183; Cosmos</text>
+  </g>
+
+  <!-- ==== Exchange 1: Consumers -> Providers (sensor data) ==== -->
+  <line x1="505" y1="230" x2="677" y2="230" class="connector" marker-end="url(#arrowhead)"/>
+  <circle cx="560" cy="230" r="4" fill="#ec4899" class="pulse-dot"/>
+  <circle cx="620" cy="230" r="4" fill="#ec4899" class="pulse-dot-delay1"/>
+  <text x="591" y="218" class="sublabel" text-anchor="middle" font-size="13">Sensor data</text>
+  <text x="591" y="252" class="sublabel" text-anchor="middle" font-size="13">+ observations</text>
+
+  <!-- ==== Exchange 2: Providers -> Submitters (patient data) ==== -->
+  <line x1="905" y1="230" x2="1077" y2="230" class="connector" marker-end="url(#arrowhead)"/>
+  <circle cx="960" cy="230" r="4" fill="#38bdf8" class="pulse-dot"/>
+  <circle cx="1020" cy="230" r="4" fill="#38bdf8" class="pulse-dot-delay1"/>
+  <text x="991" y="218" class="sublabel" text-anchor="middle" font-size="13">FHIR Bundle</text>
+  <text x="991" y="252" class="sublabel" text-anchor="middle" font-size="13">patient data</text>
+
+  <!-- ==== Exchange 3: Submitters -> Receivers (reports + prospective-measurements-forecast) ==== -->
+  <line x1="1305" y1="230" x2="1477" y2="230" class="connector" marker-end="url(#arrowhead)"/>
+  <circle cx="1360" cy="230" r="4" fill="#38bdf8" class="pulse-dot"/>
+  <circle cx="1420" cy="230" r="4" fill="#38bdf8" class="pulse-dot-delay1"/>
+  <text x="1391" y="218" class="sublabel" text-anchor="middle" font-size="13">Measurements Report</text>
+  <text x="1391" y="252" class="sublabel" text-anchor="middle" font-size="13">summary + forecast</text>
+
+  <!-- ==== Exchange: Consumers -> Platform (opt-in analytics) ==== -->
+  <line x1="395" y1="350" x2="395" y2="478" class="connector" marker-end="url(#arrowhead)"/>
+  <circle cx="395" cy="385" r="4" fill="#a855f7" class="pulse-dot-v"/>
+  <circle cx="395" cy="430" r="4" fill="#a855f7" class="pulse-dot-v-delay1"/>
+  <text x="410" y="420" class="sublabel" font-size="13">opt-in analytics</text>
+
+  <!-- ==== Exchange: Providers -> Platform (opt-in analytics) ==== -->
+  <line x1="795" y1="350" x2="795" y2="478" class="connector" marker-end="url(#arrowhead)"/>
+  <circle cx="795" cy="385" r="4" fill="#a855f7" class="pulse-dot-v"/>
+  <circle cx="795" cy="430" r="4" fill="#a855f7" class="pulse-dot-v-delay1"/>
+  <text x="810" y="420" class="sublabel" font-size="13">opt-in analytics</text>
+
+  <!-- ==== Exchange: Submitters -> Platform (opt-in analytics) ==== -->
+  <line x1="1195" y1="350" x2="1195" y2="478" class="connector" marker-end="url(#arrowhead)"/>
+  <circle cx="1195" cy="385" r="4" fill="#a855f7" class="pulse-dot-v"/>
+  <circle cx="1195" cy="430" r="4" fill="#a855f7" class="pulse-dot-v-delay1"/>
+  <text x="1210" y="420" class="sublabel" font-size="13">opt-in analytics</text>
+
+  <!-- ==== Exchange: Receivers -> Platform (opt-in analytics) ==== -->
+  <line x1="1595" y1="350" x2="1595" y2="478" class="connector" marker-end="url(#arrowhead)"/>
+  <circle cx="1595" cy="385" r="4" fill="#a855f7" class="pulse-dot-v"/>
+  <circle cx="1595" cy="430" r="4" fill="#a855f7" class="pulse-dot-v-delay1"/>
+  <text x="1610" y="420" class="sublabel" font-size="13">opt-in analytics</text>
+</svg>

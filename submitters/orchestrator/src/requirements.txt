@@ -1,0 +1,41 @@
+# FastAPI MCP Server Dependencies
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.6
+azure-storage-blob==12.19.0
+azure-identity>=1.19.0
+azure-ai-evaluation>=1.14.0
+aiohttp
+pydantic>=2.9.0
+
+# Microsoft Agent Framework
+# Pin version to avoid breaking changes
+agent-framework-azure-ai==1.0.0b260107
+agent-framework-core==1.0.0b260107
+agent-framework-azure-ai-search==1.0.0b260107
+
+# Keep projects SDK on a compatible beta API surface used by the pinned framework build
+azure-ai-projects==2.0.0b3
+
+# Azure AI Search for long-term memory and Foundry IQ integration
+azure-search-documents>=11.5.0
+
+# Azure OpenAI SDK for Foundry model calls
+openai>=1.0.0
+
+# Azure CosmosDB for task and plan storage
+azure-cosmos>=4.7.0
+
+# NumPy for vector operations (cosine similarity)
+numpy>=1.24.0
+
+# Environment management
+python-dotenv>=1.0.0
+
+# HTTP requests
+requests>=2.31.0
+
+# CQL → ELM front end (pure-Python, no Java) used by the native CQL executor
+ms-cql-sdk>=0.4.2
+
+# Native RL / reward-shaping SDK (installed from PyPI; published from microsoft/azure-agents-learning-sdk)
+azure-agents-learning-sdk>=0.2.0

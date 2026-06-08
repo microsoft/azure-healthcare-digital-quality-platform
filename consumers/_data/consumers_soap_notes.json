@@ -1,0 +1,276 @@
+{
+  "soap-PAT-101-r1-md": {
+    "id": "soap-PAT-101-r1-md",
+    "docType": "soap_note",
+    "patientId": "PAT-101",
+    "round": 1,
+    "entry": {
+      "role": "physician",
+      "subjective": "55yo F with T2DM x 4y reports polyuria and fatigue over the past month. Adherent to metformin 1000mg BID, denies hypoglycemia, no dietitian visits in the last year.",
+      "objective": "HR 84 bpm, BP 132/82, BMI 31. HbA1c 8.6% (2024-03-12), trending up from 7.9% one year prior. No peripheral neuropathy on monofilament exam.",
+      "assessment": "Type 2 diabetes, uncontrolled. CMS122 denominator: yes, numerator (HbA1c > 9.0%): not yet but trending. Risk for poor control.",
+      "plan": "Add empagliflozin 10mg daily. Reinforce carb counting. Re-check HbA1c in 3 months. Referral to RD. Next visit Sep 2024.",
+      "encounterId": "enc-101-a",
+      "author": "dr.kessler@example.com"
+    },
+    "createdAt": "2024-03-12T15:10:00+00:00",
+    "updatedAt": "2024-03-12T15:10:00+00:00"
+  },
+  "soap-PAT-101-r1-rn": {
+    "id": "soap-PAT-101-r1-rn",
+    "docType": "soap_note",
+    "patientId": "PAT-101",
+    "round": 1,
+    "entry": {
+      "role": "nurse",
+      "subjective": "Patient verbalizes understanding of new SGLT2 inhibitor. Concerned about cost.",
+      "objective": "Vitals stable. Glucometer log reviewed, fasting glucose 140-180 mg/dL most mornings. Demonstrated correct injection technique not applicable (oral regimen).",
+      "assessment": "Knowledge deficit re: SGLT2 side effects (UTI risk, euglycemic DKA signs).",
+      "plan": "Provided written teaching sheet. Reviewed sick day rules. Scheduled f/u nurse call in 2 weeks. Coordinating with case worker re: medication cost.",
+      "encounterId": "enc-101-a",
+      "author": "rn.morales@example.com"
+    },
+    "createdAt": "2024-03-12T15:40:00+00:00",
+    "updatedAt": "2024-03-12T15:40:00+00:00"
+  },
+  "soap-PAT-101-r2-md": {
+    "id": "soap-PAT-101-r2-md",
+    "docType": "soap_note",
+    "patientId": "PAT-101",
+    "round": 2,
+    "entry": {
+      "role": "physician",
+      "subjective": "Returns at 6 months. Reports better energy but missed several days of empagliflozin due to cost. Diet adherence partial.",
+      "objective": "BP 130/80. HbA1c 9.4% (2024-09-04), up from 8.6%. No signs of retinopathy on prior dilated exam.",
+      "assessment": "T2DM with worsening control. Now exceeding poor-control threshold. CMS122 numerator: yes.",
+      "plan": "Switch SGLT2 to formulary alternative. Add GLP-1 RA pending PA. Continue metformin. Repeat HbA1c in 3 months. Endocrine referral.",
+      "encounterId": "enc-101-b",
+      "author": "dr.kessler@example.com"
+    },
+    "createdAt": "2024-09-04T16:05:00+00:00",
+    "updatedAt": "2024-09-04T16:05:00+00:00"
+  },
+  "soap-PAT-101-r2-cw": {
+    "id": "soap-PAT-101-r2-cw",
+    "docType": "soap_note",
+    "patientId": "PAT-101",
+    "round": 2,
+    "entry": {
+      "role": "case-worker",
+      "subjective": "Patient reports $40 copay for empagliflozin is unaffordable on fixed income.",
+      "objective": "Reviewed insurance formulary. Confirmed dapagliflozin and metformin are Tier 1.",
+      "assessment": "Social determinant: medication affordability driving non-adherence.",
+      "plan": "Submitted manufacturer copay-assistance application. Coordinated with PCP to switch to formulary alternative. F/u call in 1 week to confirm fill.",
+      "encounterId": "enc-101-b",
+      "author": "cw.patel@example.com"
+    },
+    "createdAt": "2024-09-04T16:30:00+00:00",
+    "updatedAt": "2024-09-04T16:30:00+00:00"
+  },
+  "soap-PAT-101-r3-md": {
+    "id": "soap-PAT-101-r3-md",
+    "docType": "soap_note",
+    "patientId": "PAT-101",
+    "round": 3,
+    "entry": {
+      "role": "physician",
+      "subjective": "Endocrine f/u. Patient on max metformin + dapagliflozin + semaglutide 0.5mg weekly x 8 weeks. Tolerating well, 6 lb wt loss.",
+      "objective": "BP 128/78. HbA1c 9.8% (2025-02-21). BMI 30.1.",
+      "assessment": "T2DM, persistent uncontrolled despite triple therapy. Suspect non-adherence vs disease progression.",
+      "plan": "Increase semaglutide to 1.0mg weekly. CGM trial. Discussed insulin if HbA1c remains > 9.0% next visit. Repeat A1c in 4 months.",
+      "encounterId": "enc-101-c",
+      "author": "dr.singh@example.com"
+    },
+    "createdAt": "2025-02-21T14:20:00+00:00",
+    "updatedAt": "2025-02-21T14:20:00+00:00"
+  },
+  "soap-PAT-101-r4-md": {
+    "id": "soap-PAT-101-r4-md",
+    "docType": "soap_note",
+    "patientId": "PAT-101",
+    "round": 4,
+    "entry": {
+      "role": "physician",
+      "subjective": "CGM data shows fasting glucose 160-220, post-prandial spikes to 280. Reports skipping semaglutide due to nausea x 3 doses.",
+      "objective": "BP 130/82. HbA1c 10.2% (2025-07-15). Wt unchanged. No DKA.",
+      "assessment": "T2DM, poorly controlled (CMS122 numerator: yes). Plan failure on oral + GLP-1.",
+      "plan": "Start basal insulin glargine 10 units qHS, titrate to fasting glucose < 130. Continue metformin and dapagliflozin. Resume semaglutide at 0.25mg with anti-emetic. RN to call in 1 week.",
+      "encounterId": "enc-101-d",
+      "author": "dr.singh@example.com"
+    },
+    "createdAt": "2025-07-15T17:00:00+00:00",
+    "updatedAt": "2025-07-15T17:00:00+00:00"
+  },
+
+  "soap-PAT-102-r1-md": {
+    "id": "soap-PAT-102-r1-md",
+    "docType": "soap_note",
+    "patientId": "PAT-102",
+    "round": 1,
+    "entry": {
+      "role": "physician",
+      "subjective": "57yo M, longstanding essential HTN x 5y. Reports occasional morning headaches. Adherent to lisinopril 20mg daily. Salt intake moderate, exercises 2x/wk.",
+      "objective": "BP 148/94 (2024-02-09), repeat 146/92. HR 78. BMI 28. No signs of end-organ damage. EKG NSR.",
+      "assessment": "Stage 2 hypertension, uncontrolled per JNC8. CMS165 denominator: yes, numerator (BP < 140/90): no.",
+      "plan": "Add amlodipine 5mg daily. Counseled DASH diet. Home BP log requested. Recheck in 6 months.",
+      "encounterId": "enc-102-a",
+      "author": "dr.kessler@example.com"
+    },
+    "createdAt": "2024-02-09T10:15:00+00:00",
+    "updatedAt": "2024-02-09T10:15:00+00:00"
+  },
+  "soap-PAT-102-r1-rn": {
+    "id": "soap-PAT-102-r1-rn",
+    "docType": "soap_note",
+    "patientId": "PAT-102",
+    "round": 1,
+    "entry": {
+      "role": "nurse",
+      "subjective": "Patient open to lifestyle counseling. Wife present and supportive.",
+      "objective": "Home BP cuff validated against office cuff (within 4 mmHg). Reviewed proper technique.",
+      "assessment": "Ready for self-monitoring.",
+      "plan": "Provided BP log template. F/u nurse call in 1 month to review readings.",
+      "encounterId": "enc-102-a",
+      "author": "rn.morales@example.com"
+    },
+    "createdAt": "2024-02-09T10:45:00+00:00",
+    "updatedAt": "2024-02-09T10:45:00+00:00"
+  },
+  "soap-PAT-102-r2-md": {
+    "id": "soap-PAT-102-r2-md",
+    "docType": "soap_note",
+    "patientId": "PAT-102",
+    "round": 2,
+    "entry": {
+      "role": "physician",
+      "subjective": "6-month f/u. Tolerating amlodipine, mild ankle edema, no orthostasis. Home BP avg 142/88.",
+      "objective": "BP 144/90 (2024-08-18). Wt -3 lb. K+ 4.1, Cr 1.0.",
+      "assessment": "HTN, improved but still above goal. CMS165 numerator: no.",
+      "plan": "Increase amlodipine to 10mg. Continue lisinopril 20mg. Recheck in 6 months.",
+      "encounterId": "enc-102-b",
+      "author": "dr.kessler@example.com"
+    },
+    "createdAt": "2024-08-18T11:30:00+00:00",
+    "updatedAt": "2024-08-18T11:30:00+00:00"
+  },
+  "soap-PAT-102-r3-md": {
+    "id": "soap-PAT-102-r3-md",
+    "docType": "soap_note",
+    "patientId": "PAT-102",
+    "round": 3,
+    "entry": {
+      "role": "physician",
+      "subjective": "Annual visit. Reports good adherence, exercising 4x/wk. Home BP avg 132/82. No edema since dose change.",
+      "objective": "BP 134/84 (2025-05-02). BMI 27.4. Basic metabolic panel normal.",
+      "assessment": "HTN, controlled. CMS165 numerator: yes (BP < 140/90 on latest reading).",
+      "plan": "Continue current regimen. Annual labs ordered. Recheck in 12 months unless symptoms.",
+      "encounterId": "enc-102-c",
+      "author": "dr.kessler@example.com"
+    },
+    "createdAt": "2025-05-02T09:55:00+00:00",
+    "updatedAt": "2025-05-02T09:55:00+00:00"
+  },
+  "soap-PAT-102-r3-rn": {
+    "id": "soap-PAT-102-r3-rn",
+    "docType": "soap_note",
+    "patientId": "PAT-102",
+    "round": 3,
+    "entry": {
+      "role": "nurse",
+      "subjective": "Patient proud of weight loss and BP control. Asks about reducing meds.",
+      "objective": "BP log reviewed, consistent with office reading.",
+      "assessment": "On track. Reinforce that dose reduction requires sustained control x 1y per provider.",
+      "plan": "Encouraged continued lifestyle. Scheduled labs draw same day.",
+      "encounterId": "enc-102-c",
+      "author": "rn.morales@example.com"
+    },
+    "createdAt": "2025-05-02T10:25:00+00:00",
+    "updatedAt": "2025-05-02T10:25:00+00:00"
+  },
+
+  "soap-PAT-103-r1-md": {
+    "id": "soap-PAT-103-r1-md",
+    "docType": "soap_note",
+    "patientId": "PAT-103",
+    "round": 1,
+    "entry": {
+      "role": "physician",
+      "subjective": "30yo G2P1 at 28 weeks. Reports mild swelling in hands and feet, denies headache, no visual changes, no RUQ pain. Fetal movement reassuring.",
+      "objective": "BP 134/86, urine dipstick trace protein. Fundal height appropriate. FHTs 148 bpm.",
+      "assessment": "Pregnancy 28 wks. Borderline BP, mild edema. Watch for pre-eclampsia.",
+      "plan": "Order 24h urine protein and CMP. Re-check BP in 1 wk. Pre-eclampsia precaution handout given.",
+      "encounterId": "enc-103-prenatal-1",
+      "author": "dr.nguyen@example.com"
+    },
+    "createdAt": "2025-01-20T13:00:00+00:00",
+    "updatedAt": "2025-01-20T13:00:00+00:00"
+  },
+  "soap-PAT-103-r2-md": {
+    "id": "soap-PAT-103-r2-md",
+    "docType": "soap_note",
+    "patientId": "PAT-103",
+    "round": 2,
+    "entry": {
+      "role": "physician",
+      "subjective": "Returns at 37 wks. Reports new-onset right-sided headache yesterday, resolved with rest. No visual changes. Fetal movement normal.",
+      "objective": "BP 152/96, repeat 150/98. Urine protein 2+. AST 38, ALT 42, platelets 165k. Hyperreflexive at patella.",
+      "assessment": "Pre-eclampsia with severe features developing. Admit for fetal monitoring and BP control.",
+      "plan": "Admit L&D. Start labetalol IV. Magnesium sulfate for seizure prophylaxis. Plan delivery within 24-48h. Consult MFM.",
+      "encounterId": "enc-103-prenatal-2",
+      "author": "dr.nguyen@example.com"
+    },
+    "createdAt": "2025-04-14T15:45:00+00:00",
+    "updatedAt": "2025-04-14T15:45:00+00:00"
+  },
+  "soap-PAT-103-r3-md": {
+    "id": "soap-PAT-103-r3-md",
+    "docType": "soap_note",
+    "patientId": "PAT-103",
+    "round": 3,
+    "entry": {
+      "role": "physician",
+      "subjective": "POD#1 from cesarean for non-reassuring fetal status in setting of severe pre-eclampsia. EBL 1800 mL intra-op. Received 2 units pRBC. Reports incisional pain 5/10, controlled with PCA. Voiding via foley.",
+      "objective": "BP 162/108 on labetalol drip. HR 92. Hgb 8.4 (post-transfusion). Lochia moderate. Fundus firm at U. Lungs clear.",
+      "assessment": "Severe pre-eclampsia with postpartum hemorrhage. Severe maternal morbidity (ePC02 numerator: yes - delivery encounter with transfusion). Anemia.",
+      "plan": "Continue magnesium x 24h post-delivery. Wean labetalol to PO when stable. Iron supplementation. Strict I/O. Pneumatic compression. F/u Hgb in 12h.",
+      "encounterId": "enc-103-delivery",
+      "author": "dr.nguyen@example.com"
+    },
+    "createdAt": "2025-08-10T08:30:00+00:00",
+    "updatedAt": "2025-08-10T08:30:00+00:00"
+  },
+  "soap-PAT-103-r3-rn": {
+    "id": "soap-PAT-103-r3-rn",
+    "docType": "soap_note",
+    "patientId": "PAT-103",
+    "round": 3,
+    "entry": {
+      "role": "nurse",
+      "subjective": "Patient teary, asking when she can hold the baby. Pain controlled at rest.",
+      "objective": "Continuous BP monitoring q15min. Magnesium drip at 2g/h. Reflexes 2+. UO > 30 mL/h. Lochia changed q2h.",
+      "assessment": "Stable post-op. Bonding interrupted by ICU-level monitoring.",
+      "plan": "Coordinated with NICU to bring baby to bedside. Reviewed mag side-effects with patient. F/u BP and reflexes hourly.",
+      "encounterId": "enc-103-delivery",
+      "author": "rn.morales@example.com"
+    },
+    "createdAt": "2025-08-10T09:15:00+00:00",
+    "updatedAt": "2025-08-10T09:15:00+00:00"
+  },
+  "soap-PAT-103-r4-md": {
+    "id": "soap-PAT-103-r4-md",
+    "docType": "soap_note",
+    "patientId": "PAT-103",
+    "round": 4,
+    "entry": {
+      "role": "physician",
+      "subjective": "3-week postpartum visit. Breastfeeding well. Denies headache or visual changes. Mood baseline. No chest pain or SOB.",
+      "objective": "BP 138/88 on PO labetalol 200mg BID. Incision well-healed. Hgb 10.6.",
+      "assessment": "Postpartum recovery from severe pre-eclampsia and PPH. BP improving. Anemia resolving.",
+      "plan": "Continue labetalol, plan to taper at 6 wk visit if BP < 130/80. Iron PO. EPDS screen negative. Discussed contraception. Counseled on future-pregnancy risk and value of low-dose aspirin in any subsequent pregnancy.",
+      "encounterId": "enc-103-postpartum",
+      "author": "dr.nguyen@example.com"
+    },
+    "createdAt": "2025-09-02T11:10:00+00:00",
+    "updatedAt": "2025-09-02T11:10:00+00:00"
+  }
+}

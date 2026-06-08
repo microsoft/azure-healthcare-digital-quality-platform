@@ -1,0 +1,26 @@
+[
+  {
+    "id": "agency-cms",
+    "name": "Centers for Medicare & Medicaid Services",
+    "shortName": "CMS",
+    "description": "U.S. federal agency that administers Medicare, Medicaid, CHIP, and the Health Insurance Marketplace; publishes most of the digital quality measures used by this accelerator.",
+    "website": "https://www.cms.gov",
+    "country": "US"
+  },
+  {
+    "id": "agency-tjc",
+    "name": "The Joint Commission",
+    "shortName": "TJC",
+    "description": "Independent, not-for-profit organization that accredits and certifies U.S. health care organizations and programs; publishes hospital ORYX core measures.",
+    "website": "https://www.jointcommission.org",
+    "country": "US"
+  },
+  {
+    "id": "agency-ncqa",
+    "name": "National Committee for Quality Assurance",
+    "shortName": "NCQA",
+    "description": "Private, non-profit organization that maintains the HEDIS measure set used by health plans for accreditation and quality reporting.",
+    "website": "https://www.ncqa.org",
+    "country": "US"
+  }
+]

@@ -1,0 +1,9 @@
+node_modules
+dist
+build
+.git
+.venv
+.history
+.DS_Store
+*.log
+.env

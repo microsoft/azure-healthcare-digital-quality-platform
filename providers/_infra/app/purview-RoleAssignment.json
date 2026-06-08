@@ -1,0 +1,57 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "14153658865631901674"
+    }
+  },
+  "parameters": {
+    "purviewAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Purview account."
+      }
+    },
+    "roleDefinitionID": {
+      "type": "string",
+      "metadata": {
+        "description": "Role definition ID to assign (use built-in Azure RBAC roles)."
+      }
+    },
+    "principalID": {
+      "type": "string",
+      "metadata": {
+        "description": "Principal ID to assign the role to."
+      }
+    },
+    "principalType": {
+      "type": "string",
+      "defaultValue": "ServicePrincipal",
+      "metadata": {
+        "description": "Principal type: User, Group, or ServicePrincipal."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.Purview/accounts', parameters('purviewAccountName'))]",
+      "name": "[guid(resourceId('Microsoft.Purview/accounts', parameters('purviewAccountName')), parameters('principalID'), parameters('roleDefinitionID'))]",
+      "properties": {
+        "principalId": "[parameters('principalID')]",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', parameters('roleDefinitionID'))]",
+        "principalType": "[parameters('principalType')]"
+      }
+    }
+  ],
+  "outputs": {
+    "roleAssignmentId": {
+      "type": "string",
+      "value": "[extensionResourceId(resourceId('Microsoft.Purview/accounts', parameters('purviewAccountName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Purview/accounts', parameters('purviewAccountName')), parameters('principalID'), parameters('roleDefinitionID')))]"
+    }
+  }
+}

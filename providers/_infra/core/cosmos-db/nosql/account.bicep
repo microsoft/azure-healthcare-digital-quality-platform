@@ -1,0 +1,38 @@
+metadata description = 'Create an Azure Cosmos DB for NoSQL account.'
+
+param name string
+param location string = resourceGroup().location
+param tags object = {}
+
+@description('Enables serverless for this account. Defaults to false.')
+param enableServerless bool = false
+
+@description('Disables key-based authentication. Defaults to false.')
+param disableKeyBasedAuth bool = false
+
+@description('Enables vector search for this account. Defaults to false.')
+param enableVectorSearch bool = false
+
+@description('Enables NoSQL full text search for this account. Defaults to false.')
+param enableNoSQLFullTextSearch bool = false
+
+@description('IP addresses or CIDR ranges allowed to access the account (for developer access).')
+param ipRules array = []
+
+module account '../account.bicep' = {
+  name: 'cosmos-db-nosql-account'
+  params: {
+    name: name
+    location: location
+    tags: tags
+    kind: 'GlobalDocumentDB'
+    enableServerless: enableServerless
+    enableNoSQLVectorSearch: enableVectorSearch
+    enableNoSQLFullTextSearch: enableNoSQLFullTextSearch
+    disableKeyBasedAuth: disableKeyBasedAuth
+    ipRules: ipRules
+  }
+}
+
+output endpoint string = account.outputs.endpoint
+output name string = account.outputs.name

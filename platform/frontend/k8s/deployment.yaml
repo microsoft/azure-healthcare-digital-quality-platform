@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: dq
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: ${CONTAINER_REGISTRY}/frontend:${IMAGE_TAG}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        env:
+        - name: VITE_AZURE_CLIENT_ID
+          value: "${VITE_AZURE_CLIENT_ID}"
+        - name: VITE_AZURE_AUTHORITY
+          value: "${VITE_AZURE_AUTHORITY}"
+        - name: VITE_AZURE_REDIRECT_URI
+          value: "${VITE_AZURE_REDIRECT_URI}"
+        - name: VITE_AZURE_DOMAIN_HINT
+          value: "${VITE_AZURE_DOMAIN_HINT}"
+        - name: VITE_API_URL
+          value: ""
+        - name: VITE_CLINICAL_STAFF_GROUP_ID
+          value: "${VITE_CLINICAL_STAFF_GROUP_ID}"
+        - name: VITE_ADMIN_GROUP_ID
+          value: "${VITE_ADMIN_GROUP_ID}"
+        - name: VITE_API_SCOPE
+          value: "${VITE_API_SCOPE}"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: dq
+  labels:
+    app: frontend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  selector:
+    app: frontend

@@ -1,0 +1,30 @@
+# Runs the platform stack of the Azure Healthcare Digital Quality
+# accelerator locally. Phase-0 stub: a single FastAPI app exposing /health
+# and /. Backend, frontend, and orchestrator services land in later phases.
+#
+# From platform/:
+#   docker compose up --build
+#
+# No Dockerfile yet - the stub runs under `python:3.11-slim` with the
+# source mounted and dependencies installed at container start.
+
+services:
+  platform:
+    image: python:3.11-slim
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command:
+      - bash
+      - -c
+      - "pip install --no-cache-dir -r requirements.txt fastapi uvicorn && uvicorn main:app --host 0.0.0.0 --port 8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "8020:8000"
+    networks:
+      - dq-net
+
+networks:
+  dq-net:
+    driver: bridge

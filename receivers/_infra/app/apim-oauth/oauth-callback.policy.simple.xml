@@ -1,0 +1,53 @@
+<!--
+    SIMPLIFIED OAUTH CALLBACK POLICY - FOR DEBUGGING
+    This is a simplified version to test if the basic callback infrastructure works
+-->
+<policies>
+    <inbound>
+        <base />
+        <!-- Extract the authorization code from the callback -->
+        <set-variable name="authCode" value="@((string)context.Request.Url.Query.GetValueOrDefault("code", ""))" />
+        <set-variable name="state" value="@((string)context.Request.Url.Query.GetValueOrDefault("state", ""))" />
+        
+        <!-- For now, just return a simple success response -->
+        <return-response>
+            <set-status code="200" reason="OK" />
+            <set-header name="Content-Type" exists-action="override">
+                <value>text/html</value>
+            </set-header>
+            <set-body>@{
+                string authCode = (string)context.Variables.GetValueOrDefault("authCode", "none");
+                string state = (string)context.Variables.GetValueOrDefault("state", "none");
+                return $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OAuth Callback - Debug</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 50px; }}
+        .info {{ background: #f0f8ff; padding: 20px; border-radius: 5px; }}
+    </style>
+</head>
+<body>
+    <h1>OAuth Callback Received</h1>
+    <div class='info'>
+        <p><strong>Authorization Code:</strong> {authCode}</p>
+        <p><strong>State:</strong> {state}</p>
+        <p><strong>Status:</strong> Callback received successfully (simplified policy)</p>
+    </div>
+    <p>This is a debug version. In production, this would exchange the code for tokens.</p>
+</body>
+</html>";
+            }</set-body>
+        </return-response>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

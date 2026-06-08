@@ -1,0 +1,209 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dq
+  labels:
+    azure.workload.identity/use: "true"
+---
+# =========================================
+# ServiceAccount for Entra Agent Identity (Primary - AI Agent Workloads)
+# =========================================
+# This service account uses the Entra Agent Identity for AI agent operations.
+# Provides better governance, audit trails, and purpose-built identity for AI agents.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-agent-sa
+  namespace: dq
+  annotations:
+    # Entra Agent Identity App ID (client ID)
+    azure.workload.identity/client-id: "${AGENT_IDENTITY_APP_ID}"
+    azure.workload.identity/tenant-id: "${AZURE_TENANT_ID}"
+  labels:
+    azure.workload.identity/use: "true"
+    app: orchestrator
+    identity-type: entra-agent-identity
+---
+# =========================================
+# Legacy ServiceAccount (Retained for Deployment Scripts)
+# =========================================
+# This service account uses the User Assigned Managed Identity (id-mcp-*).
+# Retained for deployment scripts that create Agent Identity Blueprints.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: orchestrator-sa
+  namespace: dq
+  annotations:
+    # User Assigned Managed Identity Client ID (id-mcp-*)
+    azure.workload.identity/client-id: "${MCP_SERVER_IDENTITY_CLIENT_ID}"
+  labels:
+    azure.workload.identity/use: "true"
+    app: orchestrator
+    identity-type: managed-identity-legacy
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator
+  namespace: dq
+  labels:
+    app: orchestrator
+    agent: digital-quality-orchestrator
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: orchestrator
+  template:
+    metadata:
+      labels:
+        app: orchestrator
+        azure.workload.identity/use: "true"
+        agent: digital-quality-orchestrator
+      annotations:
+        # Entra Agent Identity metadata
+        entra.agent-id/enabled: "true"
+        entra.agent-id/blueprint-app-id: "${AGENT_IDENTITY_BLUEPRINT_APP_ID}"
+    spec:
+      # Use the primary Entra Agent Identity service account
+      serviceAccountName: mcp-agent-sa
+      containers:
+      - name: orchestrator
+        image: ${CONTAINER_REGISTRY}/orchestrator:${IMAGE_TAG}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        env:
+        # =========================================
+        # Entra Agent Identity Configuration
+        # =========================================
+        - name: AGENT_IDENTITY_ENABLED
+          value: "true"
+        - name: AZURE_CLIENT_ID
+          value: "${AGENT_IDENTITY_APP_ID}"
+        - name: AGENT_IDENTITY_BLUEPRINT_APP_ID
+          value: "${AGENT_IDENTITY_BLUEPRINT_APP_ID}"
+        - name: AGENT_IDENTITY_DISPLAY_NAME
+          value: "${AGENT_IDENTITY_DISPLAY_NAME}"
+        # Legacy identity reference (for deployment scripts only)
+        - name: MCP_SERVER_IDENTITY_CLIENT_ID
+          value: "${MCP_SERVER_IDENTITY_CLIENT_ID}"
+        # =========================================
+        # Azure Storage Configuration
+        # =========================================
+        - name: AZURE_STORAGE_ACCOUNT_URL
+          value: "${AZURE_STORAGE_ACCOUNT_URL}"
+        # =========================================
+        # Azure AI Foundry Configuration
+        # =========================================
+        - name: FOUNDRY_PROJECT_ENDPOINT
+          value: "${FOUNDRY_PROJECT_ENDPOINT}"
+        - name: AZURE_AI_PROJECT_ENDPOINT
+          value: "${FOUNDRY_PROJECT_ENDPOINT}"
+        - name: FOUNDRY_MODEL_DEPLOYMENT_NAME
+          value: "${FOUNDRY_MODEL_DEPLOYMENT_NAME}"
+        - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+          value: "${FOUNDRY_MODEL_DEPLOYMENT_NAME}"
+        - name: EMBEDDING_MODEL_DEPLOYMENT_NAME
+          value: "${EMBEDDING_MODEL_DEPLOYMENT_NAME}"
+        - name: AI_CQL_EXCLUDE_WORKLOAD_IDENTITY
+          value: "${AI_CQL_EXCLUDE_WORKLOAD_IDENTITY}"
+        - name: FOUNDRY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: orchestrator-secrets
+              key: FOUNDRY_API_KEY
+              optional: true
+        - name: AZURE_OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: orchestrator-secrets
+              key: AZURE_OPENAI_API_KEY
+              optional: true
+        # =========================================
+        # CosmosDB Configuration
+        # =========================================
+        - name: COSMOSDB_ENDPOINT
+          value: "${COSMOSDB_ENDPOINT}"
+        - name: COSMOSDB_DATABASE_NAME
+          value: "${COSMOSDB_DATABASE_NAME}"
+        # =========================================
+        # Agent Learning Configuration (policy-bandit RL)
+        # =========================================
+        - name: AGENT_LEARNING_DATABASE_NAME
+          value: "${AGENT_LEARNING_DATABASE_NAME:-dq_rl}"
+        - name: LEARNING_AGENT_ID
+          value: "${LEARNING_AGENT_ID:-dq}"
+        - name: ENABLE_LEARNING_CAPTURE
+          value: "${ENABLE_LEARNING_CAPTURE:-false}"
+        - name: ENABLE_LEARNING_POLICY
+          value: "${ENABLE_LEARNING_POLICY:-false}"
+        - name: ENABLE_LEARNING_GRADING
+          value: "${ENABLE_LEARNING_GRADING:-false}"
+        # =========================================
+        # Azure AI Search Configuration (Foundry IQ)
+        # =========================================
+        - name: AZURE_SEARCH_ENDPOINT
+          value: "${AZURE_SEARCH_ENDPOINT}"
+        - name: AZURE_SEARCH_INDEX_NAME
+          value: "${AZURE_SEARCH_INDEX_NAME}"
+        - name: AZURE_SEARCH_KNOWLEDGE_BASE_NAME
+          value: "${AZURE_SEARCH_KNOWLEDGE_BASE_NAME}"
+
+        volumeMounts:
+        - name: tmp-volume
+          mountPath: /tmp
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: tmp-volume
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator
+  namespace: dq
+  labels:
+    app: orchestrator
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: orchestrator

@@ -1,0 +1,77 @@
+### Health Check (No Auth Required)
+GET http://127.0.0.1:8000/
+
+### Get Patient (Requires Auth) - Replace with actual token
+GET http://127.0.0.1:8000/api/patient/P002
+Authorization: Bearer <redacted>
+
+### Save Patient Data (Requires Auth) - Replace with actual token
+POST http://localhost:8000/api/patient
+Content-Type: application/json
+Authorization: Bearer <redacted>
+
+{
+    "mrn": "P001",
+    "name": "Test Patient",
+    "dob": "19900101",
+    "gender": "Male"
+}
+
+### Summarize Patient (Requires Auth) - Replace with actual token
+POST http://127.0.0.1:8000/api/summarize
+Content-Type: application/json
+Authorization: Bearer <redacted>
+
+{
+    "patient_id": "P010"
+}
+
+### Test without Auth (Should return 401)
+GET http://127.0.0.1:8000/api/patient/P001
+
+### Test POST without Auth (Should return 401)
+POST http://127.0.0.1:8000/api/patient
+Content-Type: application/json
+
+{
+    "mrn": "P002",
+    "name": "Test Patient 2",
+    "dob": "19900101",
+    "gender": "Female"
+}
+
+### Test Summarize without Auth (Should return 401)
+POST http://127.0.0.1:8000/api/summarize
+Content-Type: application/json
+
+{
+    "patient_id": "P001"
+}
+
+### Test with Invalid Token (Should return 401)
+GET http://127.0.0.1:8000/api/patient/P001
+Authorization: Bearer invalid_token_here
+
+### Instructions for getting JWT token:
+### 
+### Method 1 - Using jwt.ms:
+### 1. Go to https://jwt.ms
+### 2. Login with your Azure AD account
+### 3. Copy the token from the URL or browser dev tools
+### 4. Replace the token in the Authorization headers above
+### 
+### Method 2 - Using your frontend app:
+### 1. Open browser dev tools (F12)
+### 2. Login to your frontend app
+### 3. Go to Network tab and look for API calls
+### 4. Find the Authorization header value
+### 5. Copy the token (everything after "Bearer ")
+### 
+### Method 3 - Using Azure CLI:
+### az account get-access-token --resource YOUR_CLIENT_ID
+
+### Example of expected 401 response:
+### {
+###   "detail": "Authorization header is required"
+### }
+

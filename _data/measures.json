@@ -1,0 +1,38 @@
+[
+  {
+    "id": "CMS165v9",
+    "title": "Controlling High Blood Pressure",
+    "description": "Percentage of patients 18-85 years of age with a diagnosis of essential hypertension whose most recent blood pressure was adequately controlled (<140/<90 mmHg).",
+    "version": "9.0.0",
+    "topic": "Universal Foundation",
+    "scoring": "proportion",
+    "cqlLibrary": "CMS165v9_ControllingHighBloodPressure",
+    "enabled": true,
+    "builtin": true,
+    "tags": ["tag-universal", "tag-mips"]
+  },
+  {
+    "id": "CMS122v11",
+    "title": "Diabetes: Hemoglobin A1c Poor Control (>9%)",
+    "description": "Percentage of patients 18-75 years of age with diabetes who had hemoglobin A1c > 9.0% during the measurement period.",
+    "version": "11.0.0",
+    "topic": "Shared Savings Program",
+    "scoring": "proportion",
+    "cqlLibrary": "CMS122v11_DiabetesHbA1cPoorControl",
+    "enabled": true,
+    "builtin": true,
+    "tags": ["tag-shared-savings", "tag-mips"]
+  },
+  {
+    "id": "ePC02",
+    "title": "Severe Obstetric Complications",
+    "description": "Hospital measure of severe obstetric complications occurring during inpatient delivery encounters.",
+    "version": "1.0.0",
+    "topic": "Hospital Quality Reporting",
+    "scoring": "proportion",
+    "cqlLibrary": "ePC02_SevereObstetricComplications",
+    "enabled": true,
+    "builtin": true,
+    "tags": ["tag-hospital-quality", "tag-acute-care"]
+  }
+]

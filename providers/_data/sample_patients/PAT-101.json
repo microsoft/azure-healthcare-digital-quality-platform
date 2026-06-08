@@ -1,0 +1,144 @@
+{
+  "resourceType": "Bundle",
+  "id": "consumers-pat-101",
+  "type": "collection",
+  "meta": {
+    "tag": [
+      { "system": "https://contoso.health/consumers", "code": "sample" },
+      { "system": "https://contoso.health/consumers/measure", "code": "CMS122v11" }
+    ]
+  },
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "PAT-101",
+        "identifier": [{ "system": "urn:mrn", "value": "PAT-101" }],
+        "name": [{ "use": "official", "family": "Reyes", "given": ["Maria"] }],
+        "gender": "female",
+        "birthDate": "1972-04-18",
+        "telecom": [{ "system": "email", "value": "maria.reyes@example.com" }]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-diabetes",
+        "subject": { "reference": "Patient/PAT-101" },
+        "code": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "44054006", "display": "Diabetes mellitus type 2" }],
+          "text": "Type 2 Diabetes Mellitus"
+        },
+        "clinicalStatus": { "coding": [{ "code": "active" }] },
+        "onsetDateTime": "2021-11-02"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-101-a",
+        "subject": { "reference": "Patient/PAT-101" },
+        "status": "finished",
+        "class": { "code": "AMB", "display": "ambulatory" },
+        "type": [{ "coding": [{ "system": "http://snomed.info/sct", "code": "185349003", "display": "Encounter for check up" }] }],
+        "period": { "start": "2024-03-12", "end": "2024-03-12" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-101-b",
+        "subject": { "reference": "Patient/PAT-101" },
+        "status": "finished",
+        "class": { "code": "AMB", "display": "ambulatory" },
+        "type": [{ "coding": [{ "system": "http://snomed.info/sct", "code": "185349003", "display": "Encounter for check up" }] }],
+        "period": { "start": "2024-09-04", "end": "2024-09-04" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-101-c",
+        "subject": { "reference": "Patient/PAT-101" },
+        "status": "finished",
+        "class": { "code": "AMB", "display": "ambulatory" },
+        "type": [{ "coding": [{ "system": "http://snomed.info/sct", "code": "185349003", "display": "Encounter for check up" }] }],
+        "period": { "start": "2025-02-21", "end": "2025-02-21" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-101-d",
+        "subject": { "reference": "Patient/PAT-101" },
+        "status": "finished",
+        "class": { "code": "AMB", "display": "ambulatory" },
+        "type": [{ "coding": [{ "system": "http://snomed.info/sct", "code": "185349003", "display": "Encounter for check up" }] }],
+        "period": { "start": "2025-07-15", "end": "2025-07-15" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-101-a1c-1",
+        "status": "final",
+        "subject": { "reference": "Patient/PAT-101" },
+        "encounter": { "reference": "Encounter/enc-101-a" },
+        "code": { "coding": [{ "system": "http://loinc.org", "code": "4548-4", "display": "HbA1c" }] },
+        "effectiveDateTime": "2024-03-12",
+        "valueQuantity": { "value": 8.6, "unit": "%" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-101-a1c-2",
+        "status": "final",
+        "subject": { "reference": "Patient/PAT-101" },
+        "encounter": { "reference": "Encounter/enc-101-b" },
+        "code": { "coding": [{ "system": "http://loinc.org", "code": "4548-4", "display": "HbA1c" }] },
+        "effectiveDateTime": "2024-09-04",
+        "valueQuantity": { "value": 9.4, "unit": "%" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-101-a1c-3",
+        "status": "final",
+        "subject": { "reference": "Patient/PAT-101" },
+        "encounter": { "reference": "Encounter/enc-101-c" },
+        "code": { "coding": [{ "system": "http://loinc.org", "code": "4548-4", "display": "HbA1c" }] },
+        "effectiveDateTime": "2025-02-21",
+        "valueQuantity": { "value": 9.8, "unit": "%" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-101-a1c-4",
+        "status": "final",
+        "subject": { "reference": "Patient/PAT-101" },
+        "encounter": { "reference": "Encounter/enc-101-d" },
+        "code": { "coding": [{ "system": "http://loinc.org", "code": "4548-4", "display": "HbA1c" }] },
+        "effectiveDateTime": "2025-07-15",
+        "valueQuantity": { "value": 10.2, "unit": "%" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-101-bp-1",
+        "status": "final",
+        "subject": { "reference": "Patient/PAT-101" },
+        "encounter": { "reference": "Encounter/enc-101-c" },
+        "code": { "coding": [{ "system": "http://loinc.org", "code": "85354-9", "display": "Blood pressure panel" }] },
+        "effectiveDateTime": "2025-02-21",
+        "component": [
+          { "code": { "coding": [{ "system": "http://loinc.org", "code": "8480-6" }] }, "valueQuantity": { "value": 132, "unit": "mm[Hg]" } },
+          { "code": { "coding": [{ "system": "http://loinc.org", "code": "8462-4" }] }, "valueQuantity": { "value": 82, "unit": "mm[Hg]" } }
+        ]
+      }
+    }
+  ]
+}

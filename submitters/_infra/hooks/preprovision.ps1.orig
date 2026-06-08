@@ -1,0 +1,62 @@
+param()
+
+$ErrorActionPreference = 'Stop'
+
+$preferredLocation = if ($env:AZURE_LOCATION) { $env:AZURE_LOCATION } else { 'eastus2' }
+$locationCandidates = @($preferredLocation)
+
+$candidates = @(
+  'Standard_D2s_v5'
+  'Standard_D2as_v5'
+  'Standard_D2s_v4'
+  'Standard_D2as_v4'
+  'Standard_D2ds_v5'
+  'Standard_D2ads_v5'
+  'Standard_D4s_v5'
+  'Standard_D4as_v5'
+  'Standard_D4s_v4'
+  'Standard_D4as_v4'
+  'Standard_DS2_v2'
+  'Standard_B2ms'
+  'Standard_B2s'
+)
+
+Write-Host "Checking AKS system node pool SKU availability in location: $preferredLocation"
+
+$selectedSku = $null
+
+$selectedLocation = $null
+
+foreach ($location in $locationCandidates) {
+  Write-Host "Evaluating location '$location'..."
+
+  foreach ($candidate in $candidates) {
+    Write-Host "Trying SKU '$candidate'..."
+
+    $availableSku = az vm list-skus --location $location --resource-type virtualMachines --all --query "[?name=='$candidate' && !restrictions].name | [0]" --output tsv
+
+    if (-not [string]::IsNullOrWhiteSpace($availableSku)) {
+      $selectedSku = $candidate
+      $selectedLocation = $location
+      break
+    }
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($selectedSku)) {
+    break
+  }
+}
+
+if ([string]::IsNullOrWhiteSpace($selectedSku)) {
+  $selectedSku = $candidates[0]
+  $selectedLocation = $preferredLocation
+  Write-Warning "No candidate SKUs are currently available in location '$preferredLocation'. Falling back to preferred SKU '$selectedSku' in '$selectedLocation' to surface a precise Azure capacity error."
+} else {
+  Write-Host "Selected location '$selectedLocation' and AKS system node pool SKU '$selectedSku'."
+}
+
+azd env set AZURE_LOCATION $selectedLocation
+Write-Host "Set AZURE_LOCATION=$selectedLocation"
+
+azd env set AKS_SYSTEM_NODEPOOL_VM_SIZE $selectedSku
+Write-Host "Set AKS_SYSTEM_NODEPOOL_VM_SIZE=$selectedSku"

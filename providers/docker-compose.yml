@@ -1,0 +1,62 @@
+# Runs the providers stack of the Azure Healthcare Digital Quality
+# accelerator locally:
+#   * backend   - FastAPI API + DEQM router       (internal port 5000)
+#   * frontend  - Nginx-served Vite/React UI      (internal port 80)
+#
+# The frontend's nginx.conf proxies /api/ and /fhir/ to the in-cluster DNS
+# name `backend.dq.svc.cluster.local`, so the backend is given that name
+# as a network alias - no template edits needed.
+#
+# Providers does NOT run an orchestrator; the cohorts it builds are sent
+# to the submitters stack for measure execution. The DIGITAL_QUALITY_
+# ORCHESTRATOR_BASE_URL is set to a placeholder; override it via the
+# backend .env to point at the submitters API once that's known.
+#
+# From providers/:
+#   docker compose up --build
+#
+# Build contexts are set to `..` (the repo root) because the backend
+# Dockerfile COPYs from `providers/backend/...` and `_data/` paths that
+# only resolve when the repo root is the context.
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: providers/backend/Dockerfile
+    image: azure-healthcare-digital-quality-providers-backend:local
+    env_file:
+      - ./backend/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Providers does not run an orchestrator locally; override this in
+      # backend/.env to point at the submitters orchestrator when needed.
+      - DIGITAL_QUALITY_ORCHESTRATOR_BASE_URL=http://host.docker.internal:8001
+      - DIGITAL_QUALITY_ORCHESTRATOR_AI_TIMEOUT_SECONDS=180
+      # Local-only: allow anonymous calls so docker-compose smoke tests work
+      - DEVELOPMENT_MODE=true
+    ports:
+      - "8010:5000"
+    networks:
+      dq-net:
+        # Alias so the frontend's production nginx.conf can resolve the
+        # in-cluster DNS name without modification.
+        aliases:
+          - backend.dq.svc.cluster.local
+
+  frontend:
+    build:
+      context: ./frontend
+    image: azure-healthcare-digital-quality-providers-frontend:local
+    env_file:
+      - ./frontend/.env
+    ports:
+      - "5183:80"
+    depends_on:
+      - backend
+    networks:
+      - dq-net
+
+networks:
+  dq-net:
+    driver: bridge

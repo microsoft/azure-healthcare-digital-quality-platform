@@ -1,0 +1,66 @@
+# Measure-Execution Job (reference manifest)
+#
+# This file documents the Kubernetes Job that the submitters backend creates
+# when a clinician clicks "Submit for Processing" in the providers UI.
+#
+# The Job is created programmatically by
+#   submitters/backend/src/measure_runner.py::_create_k8s_job
+# using the kubernetes-python client. The manifest below is the canonical
+# YAML equivalent — useful for kubectl apply tests and review.
+#
+# Required environment / configuration for the submitters backend Pod that
+# creates the Job:
+#   - MEASURE_EXECUTION_JOB_MODE=kubernetes   (or "auto" with a kubeconfig)
+#   - MEASURE_EXECUTION_NAMESPACE=dq
+#   - MEASURE_EXECUTION_SERVICE_ACCOUNT=orchestrator-sa
+#   - MEASURE_EXECUTION_IMAGE=<ACR>/digital-quality-submitters-backend:<digest>
+#   - DIGITAL_QUALITY_ORCHESTRATOR_BASE_URL=http://orchestrator.dq.svc.cluster.local
+#
+# RBAC required on the submitters backend ServiceAccount:
+#   batch/jobs: create, get, list, watch (namespaced to dq)
+#
+# Per-submission rendered values (replaced at create time):
+#   ${SUBMISSION_ID}    - workbench submission id (e.g. sub-1700000000000)
+#   ${JOB_NAME}         - measure-exec-<submission_suffix>-<rand6>
+#   ${IMAGE}            - submitters backend image digest
+#   ${NAMESPACE}        - dq
+#   ${SERVICE_ACCOUNT}  - orchestrator-sa
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ${JOB_NAME}
+  namespace: ${NAMESPACE}
+  labels:
+    app: measure-runner
+    submission-id: ${SUBMISSION_ID}
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: measure-runner
+        submission-id: ${SUBMISSION_ID}
+        azure.workload.identity/use: "true"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: ${SERVICE_ACCOUNT}
+      containers:
+        - name: measure-runner
+          image: ${IMAGE}
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - measure_runner.py
+            - --submission-id
+            - ${SUBMISSION_ID}
+          env:
+            - name: SUBMISSION_ID
+              value: ${SUBMISSION_ID}
+            - name: DIGITAL_QUALITY_ORCHESTRATOR_BASE_URL
+              value: http://orchestrator.dq.svc.cluster.local
+            - name: DIGITAL_QUALITY_ORCHESTRATOR_QUALITY_ENDPOINT
+              value: /tools/compute-quality-measures
+            # Cosmos / Entra workload-identity env vars are mirrored from
+            # the submitters backend Deployment in the actual rendered Job.

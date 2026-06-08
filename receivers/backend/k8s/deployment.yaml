@@ -1,0 +1,114 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dq
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backend
+  namespace: dq
+  annotations:
+    azure.workload.identity/client-id: "da5f12c3-f125-4f47-90f0-7d8eaeb18389"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: dq
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: backend
+      containers:
+      - name: backend
+        image: ${CONTAINER_REGISTRY}/backend:${IMAGE_TAG}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5000
+          name: http
+          protocol: TCP
+        envFrom:
+        - secretRef:
+            name: backend-secret
+        env:
+        - name: AZURE_CLIENT_ID
+          value: "da5f12c3-f125-4f47-90f0-7d8eaeb18389"
+        - name: REQUIRE_DATABASE
+          value: "true"
+        - name: COSMOSDB_DATABASE
+          value: "dq"
+        - name: COSMOSDB_CATALOG_COLLECTION
+          value: "catalog"
+        - name: COSMOSDB_COHORTS_COLLECTION
+          value: "cohorts"
+        - name: SAMPLE_DATA_DIR
+          value: "/app/data"
+        - name: DIGITAL_QUALITY_ORCHESTRATOR_AI_TIMEOUT_SECONDS
+          value: "180"
+        - name: DIGITAL_QUALITY_ORCHESTRATOR_BASE_URL
+          value: "http://orchestrator.dq.svc.cluster.local"
+        volumeMounts:
+        - name: tmp-volume
+          mountPath: /tmp
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "25m"
+          limits:
+            memory: "256Mi"
+            cpu: "250m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: tmp-volume
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: dq
+  labels:
+    app: backend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 5000
+    protocol: TCP
+    name: http
+  selector:
+    app: backend

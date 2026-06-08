@@ -1,0 +1,101 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "6999092489626464191"
+    },
+    "description": "Create a Microsoft Purview account for data governance and compliance."
+  },
+  "parameters": {
+    "name": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]"
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {}
+    },
+    "managedIdentityType": {
+      "type": "string",
+      "defaultValue": "SystemAssigned",
+      "allowedValues": [
+        "SystemAssigned",
+        "UserAssigned",
+        "SystemAssigned,UserAssigned"
+      ],
+      "metadata": {
+        "description": "Managed identity type for the Purview account"
+      }
+    },
+    "publicNetworkAccess": {
+      "type": "string",
+      "defaultValue": "Disabled",
+      "allowedValues": [
+        "Enabled",
+        "Disabled"
+      ],
+      "metadata": {
+        "description": "Public network access configuration"
+      }
+    },
+    "managedResourceGroupName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Managed resource group name for Purview managed resources"
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Purview/accounts",
+      "apiVersion": "2021-12-01",
+      "name": "[parameters('name')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "identity": {
+        "type": "[parameters('managedIdentityType')]"
+      },
+      "properties": {
+        "publicNetworkAccess": "[parameters('publicNetworkAccess')]",
+        "managedResourceGroupName": "[if(not(empty(parameters('managedResourceGroupName'))), parameters('managedResourceGroupName'), format('{0}-managed-rg', parameters('name')))]"
+      }
+    }
+  ],
+  "outputs": {
+    "id": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Purview/accounts', parameters('name'))]"
+    },
+    "name": {
+      "type": "string",
+      "value": "[parameters('name')]"
+    },
+    "endpoint": {
+      "type": "string",
+      "value": "[format('https://{0}.purview.azure.com', parameters('name'))]"
+    },
+    "catalogEndpoint": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Purview/accounts', parameters('name')), '2021-12-01').endpoints.catalog]"
+    },
+    "scanEndpoint": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Purview/accounts', parameters('name')), '2021-12-01').endpoints.scan]"
+    },
+    "principalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Purview/accounts', parameters('name')), '2021-12-01', 'full').identity.principalId]"
+    },
+    "managedResourceGroupName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Purview/accounts', parameters('name')), '2021-12-01').managedResources.resourceGroup]"
+    }
+  }
+}

@@ -1,0 +1,124 @@
+{
+  "resourceType": "Bundle",
+  "id": "consumers-pat-103",
+  "type": "collection",
+  "meta": {
+    "tag": [
+      { "system": "https://contoso.health/consumers", "code": "sample" },
+      { "system": "https://contoso.health/consumers/measure", "code": "ePC02v1" }
+    ]
+  },
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "PAT-103",
+        "identifier": [{ "system": "urn:mrn", "value": "PAT-103" }],
+        "name": [{ "use": "official", "family": "Okafor", "given": ["Chioma"] }],
+        "gender": "female",
+        "birthDate": "1994-11-22",
+        "telecom": [{ "system": "email", "value": "chioma.okafor@example.com" }]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-103-prenatal-1",
+        "subject": { "reference": "Patient/PAT-103" },
+        "status": "finished",
+        "class": { "code": "AMB", "display": "ambulatory" },
+        "type": [{ "coding": [{ "system": "http://snomed.info/sct", "code": "424441002", "display": "Prenatal visit" }] }],
+        "period": { "start": "2025-01-20", "end": "2025-01-20" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-103-prenatal-2",
+        "subject": { "reference": "Patient/PAT-103" },
+        "status": "finished",
+        "class": { "code": "AMB", "display": "ambulatory" },
+        "type": [{ "coding": [{ "system": "http://snomed.info/sct", "code": "424441002", "display": "Prenatal visit" }] }],
+        "period": { "start": "2025-04-14", "end": "2025-04-14" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-103-delivery",
+        "subject": { "reference": "Patient/PAT-103" },
+        "status": "finished",
+        "class": { "code": "IMP", "display": "inpatient" },
+        "type": [{ "coding": [{ "system": "http://snomed.info/sct", "code": "177184002", "display": "Cesarean section" }] }],
+        "period": { "start": "2025-08-09", "end": "2025-08-11" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-103-postpartum",
+        "subject": { "reference": "Patient/PAT-103" },
+        "status": "finished",
+        "class": { "code": "AMB", "display": "ambulatory" },
+        "type": [{ "coding": [{ "system": "http://snomed.info/sct", "code": "169762003", "display": "Postpartum visit" }] }],
+        "period": { "start": "2025-09-02", "end": "2025-09-02" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-preeclampsia",
+        "subject": { "reference": "Patient/PAT-103" },
+        "encounter": { "reference": "Encounter/enc-103-delivery" },
+        "code": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "398254007", "display": "Pre-eclampsia" }],
+          "text": "Severe pre-eclampsia"
+        },
+        "clinicalStatus": { "coding": [{ "code": "active" }] },
+        "onsetDateTime": "2025-08-09"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Procedure",
+        "id": "proc-transfusion",
+        "subject": { "reference": "Patient/PAT-103" },
+        "encounter": { "reference": "Encounter/enc-103-delivery" },
+        "status": "completed",
+        "code": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "5447007", "display": "Transfusion of blood product" }],
+          "text": "Blood transfusion (post-partum hemorrhage)"
+        },
+        "performedDateTime": "2025-08-10"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Procedure",
+        "id": "proc-delivery",
+        "subject": { "reference": "Patient/PAT-103" },
+        "encounter": { "reference": "Encounter/enc-103-delivery" },
+        "status": "completed",
+        "code": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "177184002", "display": "Cesarean section" }]
+        },
+        "performedDateTime": "2025-08-09"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-103-bp",
+        "status": "final",
+        "subject": { "reference": "Patient/PAT-103" },
+        "encounter": { "reference": "Encounter/enc-103-delivery" },
+        "code": { "coding": [{ "system": "http://loinc.org", "code": "85354-9", "display": "Blood pressure panel" }] },
+        "effectiveDateTime": "2025-08-09",
+        "component": [
+          { "code": { "coding": [{ "system": "http://loinc.org", "code": "8480-6" }] }, "valueQuantity": { "value": 162, "unit": "mm[Hg]" } },
+          { "code": { "coding": [{ "system": "http://loinc.org", "code": "8462-4" }] }, "valueQuantity": { "value": 108, "unit": "mm[Hg]" } }
+        ]
+      }
+    }
+  ]
+}

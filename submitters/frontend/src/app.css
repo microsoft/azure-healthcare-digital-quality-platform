@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+p {
+  text-align: left;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 18px; /* Increased from default 16px */
+}
+
+main {
+  background-color: #f9fafb;
+}
+
+header, footer {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+section {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+/* Logo styling for consistent sizing */
+.logo-container img {
+  height: 48px; /* Smaller on mobile */
+  width: auto;
+  object-fit: contain;
+}
+
+.logo-container .org-logo {
+  height: 60px; /* Smaller on mobile */
+}
+
+.logo-divider {
+  width: 1px;
+  height: 50px; /* Increased from 35px on mobile */
+  background-color: #000000; /* Changed from #9ca3af to black */
+  margin: 0 12px; /* Reduced margin on mobile */
+}
+
+/* Desktop sizing */
+@media (min-width: 768px) {
+  .logo-container img {
+    height: 64px;
+  }
+  
+  .logo-container .org-logo {
+    height: 85px;
+  }
+  
+  .logo-divider {
+    height: 60px; /* Increased from 45px on desktop */
+    margin: 0 16px;
+  }
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

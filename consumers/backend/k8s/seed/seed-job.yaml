@@ -1,0 +1,83 @@
+# Seed consumers Cosmos containers via a one-off Kubernetes Job.
+#
+# The Job runs inside AKS so it can reach the Cosmos private endpoint.
+# It uses workload identity federated to the existing
+# id-mcp-qavfomo7lvk5e UAMI, which already holds the
+# "Cosmos DB Built-in Data Contributor" role on the account.
+#
+# JSON files come from a ConfigMap created from _data/*.json at the
+# repository root. The seeder script comes from a second ConfigMap.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: seed
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cosmos-seeder
+  namespace: seed
+  annotations:
+    azure.workload.identity/client-id: "be42d72b-7ba5-499d-8b72-3d7ba4ef9ed8"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cosmos-seed
+  namespace: seed
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: cosmos-seed
+        azure.workload.identity/use: "true"
+    spec:
+      restartPolicy: Never
+      serviceAccountName: cosmos-seeder
+      containers:
+      - name: seeder
+        # Standard Python slim image from Docker Hub; AKS egress is
+        # unrestricted (outboundType=loadBalancer) so this and pypi are
+        # both reachable. Switch to an ACR-hosted image if the cluster
+        # later gains an egress firewall.
+        image: python:3.12-slim
+        env:
+        - name: COSMOS_ENDPOINT
+          value: "https://cosmos-qavfomo7lvk5e.documents.azure.com:443/"
+        - name: COSMOS_DATABASE
+          value: "dq"
+        - name: COSMOS_COHORTS_CONTAINER
+          value: "cohorts"
+        - name: COSMOS_CATALOG_CONTAINER
+          value: "catalog"
+        - name: COSMOS_SEED_DATA_DIR
+          value: "/seed-data"
+        - name: PIP_DISABLE_PIP_VERSION_CHECK
+          value: "1"
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          set -eu
+          python -m pip install --quiet --no-cache-dir azure-cosmos==4.7.0 azure-identity==1.19.0
+          python /seed-script/seed_cosmos.py
+        volumeMounts:
+        - name: seed-script
+          mountPath: /seed-script
+        - name: seed-data
+          mountPath: /seed-data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"
+      volumes:
+      - name: seed-script
+        configMap:
+          name: cosmos-seed-script
+      - name: seed-data
+        configMap:
+          name: cosmos-seed-data

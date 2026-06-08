@@ -1,0 +1,69 @@
+<!--
+    SIMPLIFIED TOKEN POLICY - FOR DEBUGGING
+    This is a simplified version to test if the basic policy infrastructure works
+-->
+<policies>
+    <inbound>
+        <base />
+        <!-- Generate a more realistic token response -->
+        <set-variable name="clientId" value="@{
+            // Extract client_id from request body
+            var body = context.Request.Body?.As<string>(preserveContent: true) ?? "";
+            var pairs = body.Split('&');
+            foreach (var pair in pairs)
+            {
+                var keyValue = pair.Split('=');
+                if (keyValue.Length == 2 && keyValue[0] == "client_id")
+                {
+                    return System.Net.WebUtility.UrlDecode(keyValue[1]);
+                }
+            }
+            return "unknown";
+        }" />
+        
+        <set-variable name="authCode" value="@{
+            // Extract code from request body
+            var body = context.Request.Body?.As<string>(preserveContent: true) ?? "";
+            var pairs = body.Split('&');
+            foreach (var pair in pairs)
+            {
+                var keyValue = pair.Split('=');
+                if (keyValue.Length == 2 && keyValue[0] == "code")
+                {
+                    return System.Net.WebUtility.UrlDecode(keyValue[1]);
+                }
+            }
+            return "unknown";
+        }" />
+        
+        <return-response>
+            <set-status code="200" reason="OK" />
+            <set-header name="Content-Type" exists-action="override">
+                <value>application/json</value>
+            </set-header>
+            <set-body>@{
+                string clientId = (string)context.Variables.GetValueOrDefault("clientId", "unknown");
+                string authCode = (string)context.Variables.GetValueOrDefault("authCode", "unknown");
+                string accessToken = $"mcp_access_token_{clientId}_{authCode}_{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+                
+                return $@"{{
+                    ""access_token"": ""{accessToken}"",
+                    ""token_type"": ""Bearer"",
+                    ""expires_in"": 3600,
+                    ""scope"": ""openid https://graph.microsoft.com/.default"",
+                    ""client_id"": ""{clientId}"",
+                    ""issued_at"": {DateTimeOffset.UtcNow.ToUnixTimeSeconds()}
+                }}";
+            }</set-body>
+        </return-response>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

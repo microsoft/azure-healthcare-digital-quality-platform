@@ -1,0 +1,193 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.40.2.10011",
+      "templateHash": "16546419597969339712"
+    }
+  },
+  "parameters": {
+    "securityContactEmail": {
+      "type": "string",
+      "metadata": {
+        "description": "Email address for security contact notifications"
+      }
+    },
+    "securityContactPhone": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Phone number for security contact notifications"
+      }
+    },
+    "enableDefenderForContainers": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Defender for Containers"
+      }
+    },
+    "enableDefenderForKeyVault": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Defender for Key Vault"
+      }
+    },
+    "enableDefenderForCosmosDB": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Defender for Azure Cosmos DB"
+      }
+    },
+    "enableDefenderForAPIs": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Defender for APIs (API Management)"
+      }
+    },
+    "enableDefenderForResourceManager": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Defender for Resource Manager"
+      }
+    },
+    "enableDefenderForContainerRegistry": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable Defender for Container Registries"
+      }
+    }
+  },
+  "resources": [
+    {
+      "condition": "[parameters('enableDefenderForContainers')]",
+      "type": "Microsoft.Security/pricings",
+      "apiVersion": "2024-01-01",
+      "name": "Containers",
+      "properties": {
+        "pricingTier": "Standard",
+        "subPlan": "P2",
+        "extensions": [
+          {
+            "name": "ContainerRegistriesVulnerabilityAssessments",
+            "isEnabled": "True"
+          },
+          {
+            "name": "AgentlessDiscoveryForKubernetes",
+            "isEnabled": "True"
+          },
+          {
+            "name": "AgentlessVmScanning",
+            "isEnabled": "True"
+          }
+        ]
+      }
+    },
+    {
+      "condition": "[parameters('enableDefenderForKeyVault')]",
+      "type": "Microsoft.Security/pricings",
+      "apiVersion": "2024-01-01",
+      "name": "KeyVaults",
+      "properties": {
+        "pricingTier": "Standard"
+      }
+    },
+    {
+      "condition": "[parameters('enableDefenderForCosmosDB')]",
+      "type": "Microsoft.Security/pricings",
+      "apiVersion": "2024-01-01",
+      "name": "CosmosDbs",
+      "properties": {
+        "pricingTier": "Standard"
+      }
+    },
+    {
+      "condition": "[parameters('enableDefenderForAPIs')]",
+      "type": "Microsoft.Security/pricings",
+      "apiVersion": "2024-01-01",
+      "name": "Api",
+      "properties": {
+        "pricingTier": "Standard",
+        "subPlan": "P1"
+      }
+    },
+    {
+      "condition": "[parameters('enableDefenderForResourceManager')]",
+      "type": "Microsoft.Security/pricings",
+      "apiVersion": "2024-01-01",
+      "name": "Arm",
+      "properties": {
+        "pricingTier": "Standard"
+      }
+    },
+    {
+      "condition": "[parameters('enableDefenderForContainerRegistry')]",
+      "type": "Microsoft.Security/pricings",
+      "apiVersion": "2024-01-01",
+      "name": "ContainerRegistry",
+      "properties": {
+        "pricingTier": "Standard"
+      }
+    },
+    {
+      "type": "Microsoft.Security/securityContacts",
+      "apiVersion": "2020-01-01-preview",
+      "name": "default",
+      "properties": {
+        "emails": "[parameters('securityContactEmail')]",
+        "phone": "[parameters('securityContactPhone')]",
+        "alertNotifications": {
+          "state": "On",
+          "minimalSeverity": "Medium"
+        },
+        "notificationsByRole": {
+          "state": "On",
+          "roles": [
+            "Owner"
+          ]
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Security/autoProvisioningSettings",
+      "apiVersion": "2017-08-01-preview",
+      "name": "default",
+      "properties": {
+        "autoProvision": "On"
+      }
+    }
+  ],
+  "outputs": {
+    "defenderForContainersEnabled": {
+      "type": "bool",
+      "value": "[parameters('enableDefenderForContainers')]"
+    },
+    "defenderForKeyVaultEnabled": {
+      "type": "bool",
+      "value": "[parameters('enableDefenderForKeyVault')]"
+    },
+    "defenderForCosmosDBEnabled": {
+      "type": "bool",
+      "value": "[parameters('enableDefenderForCosmosDB')]"
+    },
+    "defenderForAPIsEnabled": {
+      "type": "bool",
+      "value": "[parameters('enableDefenderForAPIs')]"
+    },
+    "defenderForResourceManagerEnabled": {
+      "type": "bool",
+      "value": "[parameters('enableDefenderForResourceManager')]"
+    },
+    "securityContactConfigured": {
+      "type": "bool",
+      "value": true
+    }
+  }
+}

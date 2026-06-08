@@ -1,0 +1,398 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 610">
+  <defs>
+    <style>
+      @keyframes pulse {
+        0% { opacity: 0; transform: translateX(-20px); }
+        50% { opacity: 1; }
+        100% { opacity: 0; transform: translateX(20px); }
+      }
+      @keyframes glow {
+        0%, 100% { filter: drop-shadow(0 0 3px #00bcf2); }
+        50% { filter: drop-shadow(0 0 8px #00bcf2); }
+      }
+      .pulse-dot { animation: pulse 1.5s ease-in-out infinite; }
+      .pulse-dot-delay1 { animation: pulse 1.5s ease-in-out 0.3s infinite; }
+      .pulse-dot-delay2 { animation: pulse 1.5s ease-in-out 0.6s infinite; }
+      @keyframes pulseV {
+        0% { opacity: 0; transform: translateY(-8px); }
+        50% { opacity: 1; }
+        100% { opacity: 0; transform: translateY(8px); }
+      }
+      .pulse-dot-v { animation: pulseV 1.5s ease-in-out infinite; }
+      .pulse-dot-v-delay1 { animation: pulseV 1.5s ease-in-out 0.3s infinite; }
+      .logo-glow { animation: glow 2s ease-in-out infinite; }
+      .apim-glow { animation: glow 2s ease-in-out infinite; filter: drop-shadow(0 0 5px #9b4dca); }
+      .title { font-family: 'Segoe UI', Arial, sans-serif; font-size: 20px; font-weight: 600; fill: #fff; }
+      .title-large { font-family: 'Segoe UI', Arial, sans-serif; font-size: 24px; font-weight: 600; fill: #fff; }
+      .label { font-family: 'Segoe UI', Arial, sans-serif; font-size: 17px; fill: #fff; }
+      .sublabel { font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; fill: #aaa; }
+      .section-label { font-family: 'Segoe UI', Arial, sans-serif; font-size: 16px; fill: #ccc; }
+      .box { rx: 8; ry: 8; }
+      .connector { stroke: #555; stroke-width: 2; fill: none; }
+      .connector-dotted { stroke: #555; stroke-width: 2; fill: none; stroke-dasharray: 5,5; }
+    </style>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#555"/>
+    </marker>
+    <marker id="arrowhead-down" markerWidth="6" markerHeight="8" refX="3" refY="7" orient="auto">
+      <polygon points="0 0, 6 0, 3 8" fill="#555"/>
+    </marker>
+    <!-- MCP Logo gradient -->
+    <linearGradient id="mcpGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff6b35"/>
+      <stop offset="50%" style="stop-color:#f7931e"/>
+      <stop offset="100%" style="stop-color:#ff6b35"/>
+    </linearGradient>
+    <!-- Azure gradient -->
+    <linearGradient id="azureGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0078d4"/>
+      <stop offset="100%" style="stop-color:#00bcf2"/>
+    </linearGradient>
+    <!-- Entra gradient -->
+    <linearGradient id="entraGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0078d4"/>
+      <stop offset="100%" style="stop-color:#50e6ff"/>
+    </linearGradient>
+    <!-- Kubernetes gradient -->
+    <linearGradient id="k8sGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#326ce5"/>
+      <stop offset="100%" style="stop-color:#54a3ff"/>
+    </linearGradient>
+    <!-- APIM purple gradient -->
+    <linearGradient id="apimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#68217a"/>
+      <stop offset="100%" style="stop-color:#9b4dca"/>
+    </linearGradient>
+    <!-- Foundry gradient -->
+    <linearGradient id="foundryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#5c2d91"/>
+      <stop offset="100%" style="stop-color:#8661c5"/>
+    </linearGradient>
+
+  </defs>
+  
+  <!-- Dark Background -->
+  <rect width="1200" height="600" fill="#1a1a1a"/>
+  
+  <!-- ============ CALLERS BOX (Left) ============ -->
+  <rect x="20" y="25" width="204" height="255" fill="#1a1a1a" stroke="#666" stroke-width="1" class="box"/>
+  <text x="122" y="55" class="title" text-anchor="middle">Callers</text>
+  
+  <!-- M365 Copilot -->
+  <g transform="translate(35, 75)">
+    <rect x="0" y="0" width="28" height="28" fill="#6264A7" rx="3"/>
+    <text x="14" y="13" font-family="Segoe UI" font-size="8" font-weight="bold" fill="#fff" text-anchor="middle">M365</text>
+    <text x="14" y="24" font-family="Segoe UI" font-size="8" font-weight="bold" fill="#fff" text-anchor="middle">CP</text>
+    <text x="42" y="20" class="sublabel">M365 Copilot</text>
+  </g>
+  
+  <!-- Other APIs (MCP clients) -->
+  <g transform="translate(35, 120)">
+    <g class="logo-glow">
+      <circle cx="14" cy="14" r="14" fill="url(#mcpGrad)"/>
+    </g>
+    <text x="42" y="20" class="sublabel">Other MCP APIs</text>
+  </g>
+  
+  <!-- MCP Inspector -->
+  <g transform="translate(35, 170)">
+    <rect x="0" y="0" width="28" height="28" fill="#1a1a1a" stroke="url(#mcpGrad)" stroke-width="2" rx="3"/>
+    <circle cx="6" cy="10" r="2" fill="#ff5f56"/>
+    <circle cx="6" cy="14" r="2" fill="#ffbd2e"/>
+    <circle cx="6" cy="18" r="2" fill="#27ca40"/>
+    <path d="M 12 8 C 18 8 18 14 18 14 C 18 20 18 20 12 20" stroke="url(#mcpGrad)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    <line x1="16" y1="8" x2="16" y2="20" stroke="url(#mcpGrad)" stroke-width="1.5" stroke-linecap="round"/>
+    <text x="42" y="20" class="sublabel">MCP Inspector</text>
+  </g>
+  
+  <!-- VS Code -->
+  <g transform="translate(35, 215)">
+    <rect x="0" y="0" width="28" height="28" fill="#007acc" rx="3"/>
+    <text x="14" y="19" font-family="Segoe UI" font-size="13" font-weight="bold" fill="#fff" text-anchor="middle">VS</text>
+    <text x="42" y="20" class="sublabel">VS Code</text>
+  </g>
+  
+  <!-- ============ LEGEND BOX (Below Callers, aligned with Control Plane bottom) ============ -->
+  <rect x="20" y="480" width="204" height="95" fill="#252525" stroke="#666" stroke-width="1" class="box"/>
+  <text x="122" y="508" class="title" text-anchor="middle">Legend</text>
+  
+  <g transform="translate(30, 520)">
+    <circle cx="10" cy="10" r="8" fill="url(#mcpGrad)"/>
+    <text x="26" y="16" class="sublabel">MCP</text>
+  </g>
+  
+  <g transform="translate(100, 520)">
+    <g class="logo-glow">
+      <circle cx="10" cy="10" r="7" fill="#00bcf2"/>
+    </g>
+    <text x="26" y="16" class="sublabel">Data Flow</text>
+  </g>
+  
+  <g transform="translate(30, 548)">
+    <line x1="0" y1="10" x2="24" y2="10" stroke="#00bcf2" stroke-width="3" stroke-dasharray="5,4"/>
+    <text x="32" y="16" class="sublabel">Telemetry</text>
+  </g>
+  
+  <!-- ============ Connection: Callers to Control Plane ============ -->
+  <line x1="225" y1="130" x2="275" y2="130" class="connector"/>
+  <circle cx="240" cy="130" r="4" fill="#00bcf2" class="pulse-dot"/>
+  <circle cx="258" cy="130" r="4" fill="#00bcf2" class="pulse-dot-delay1"/>
+  
+  <!-- ============ AZURE HEALTHCARE DIGITAL QUALITY PLATFORM (Main Container) ============ -->
+  <rect x="275" y="25" width="900" height="570" fill="none" stroke="#0078d4" stroke-width="2" stroke-dasharray="8,4" class="box"/>
+  <text x="725" y="48" class="title-large" text-anchor="middle">Providers, Submitters, Receivers and Platform</text>
+  
+  <!-- ============ Azure API Management ============ -->
+  <g transform="translate(295, 66)">
+    <rect x="0" y="0" width="290" height="300" fill="#121212" stroke="#68217a" stroke-width="2" class="box"/>
+    
+    <!-- APIM Logo with glow -->
+    <g transform="translate(12, 12)" class="apim-glow">
+      <path d="M 22 0 L 40 9 L 40 27 L 22 36 L 4 27 L 4 9 Z" fill="url(#apimGrad)"/>
+      <text x="22" y="22" font-family="Segoe UI" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle">API</text>
+    </g>
+    <text x="62" y="35" class="title">Azure API Management</text>
+    
+    <!-- Policies box with gear icon -->
+    <rect x="15" y="70" width="260" height="70" fill="#68217a" stroke="#9b4dca" stroke-width="1" class="box"/>
+    <g transform="translate(28, 88)" class="apim-glow">
+      <circle cx="16" cy="16" r="14" fill="#9b4dca"/>
+      <circle cx="16" cy="16" r="8" fill="none" stroke="#fff" stroke-width="2"/>
+      <circle cx="16" cy="16" r="3" fill="#fff"/>
+      <line x1="16" y1="2" x2="16" y2="7" stroke="#fff" stroke-width="2"/>
+      <line x1="16" y1="25" x2="16" y2="30" stroke="#fff" stroke-width="2"/>
+      <line x1="2" y1="16" x2="7" y2="16" stroke="#fff" stroke-width="2"/>
+      <line x1="25" y1="16" x2="30" y2="16" stroke="#fff" stroke-width="2"/>
+    </g>
+    <text x="160" y="112" class="label" text-anchor="middle">Policies</text>
+    
+    <!-- Metrics box with icon -->
+    <rect x="15" y="160" width="125" height="70" fill="#68217a" stroke="#9b4dca" stroke-width="1" class="box"/>
+    <g transform="translate(28, 178)">
+      <rect x="0" y="0" width="32" height="32" fill="#9b4dca" rx="3"/>
+      <rect x="5" y="20" width="6" height="9" fill="#fff"/>
+      <rect x="13" y="12" width="6" height="17" fill="#fff"/>
+      <rect x="21" y="6" width="6" height="23" fill="#fff"/>
+    </g>
+    <text x="90" y="202" class="label" text-anchor="middle">Metrics</text>
+    
+    <!-- Logs box with icon -->
+    <rect x="150" y="160" width="125" height="70" fill="#68217a" stroke="#9b4dca" stroke-width="1" class="box"/>
+    <g transform="translate(163, 178)">
+      <rect x="0" y="0" width="32" height="32" fill="#9b4dca" rx="3"/>
+      <rect x="6" y="7" width="20" height="4" fill="#fff" rx="1"/>
+      <rect x="6" y="14" width="15" height="4" fill="#fff" rx="1"/>
+      <rect x="6" y="21" width="20" height="4" fill="#fff" rx="1"/>
+    </g>
+    <text x="220" y="202" class="label" text-anchor="middle">Logs</text>
+  </g>
+  
+  <!-- ============ Azure Monitor ============ -->
+  <g transform="translate(295, 385)">
+    <rect x="0" y="0" width="290" height="180" fill="#121212" stroke="#444" stroke-width="2" class="box"/>
+    <text x="145" y="32" class="title" text-anchor="middle">Azure Monitor</text>
+    
+    <!-- Metrics Chart Icon -->
+    <g transform="translate(45, 70)">
+      <rect x="0" y="0" width="50" height="42" fill="#0078d4" rx="4"/>
+      <rect x="7" y="26" width="8" height="12" fill="#fff"/>
+      <rect x="17" y="16" width="8" height="22" fill="#fff"/>
+      <rect x="27" y="21" width="8" height="17" fill="#fff"/>
+      <rect x="37" y="9" width="8" height="29" fill="#fff"/>
+      <text x="25" y="58" class="sublabel" text-anchor="middle">Metrics</text>
+    </g>
+    <!-- App Insights Icon -->
+    <g transform="translate(115, 70)">
+      <circle cx="25" cy="21" r="20" fill="#9b59b6"/>
+      <circle cx="25" cy="21" r="12" fill="none" stroke="#fff" stroke-width="2"/>
+      <circle cx="25" cy="21" r="5" fill="#fff"/>
+      <line x1="25" y1="5" x2="25" y2="12" stroke="#fff" stroke-width="2"/>
+      <text x="25" y="58" class="sublabel" text-anchor="middle">Insights</text>
+    </g>
+    <!-- Health Dashboard Icon -->
+    <g transform="translate(185, 70)">
+      <circle cx="25" cy="21" r="20" fill="#27ae60"/>
+      <path d="M 15 21 L 20 21 L 22 14 L 28 28 L 30 21 L 35 21" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="25" y="58" class="sublabel" text-anchor="middle">Health</text>
+    </g>
+  </g>
+  
+  <!-- Telemetry Arrow: APIM to Azure Monitor -->
+  <line x1="440" y1="372" x2="440" y2="387" stroke="#00bcf2" stroke-width="3" stroke-dasharray="4,3"/>
+  
+  <!-- ============ Connection: APIM to AKS ============ -->
+  <line x1="585" y1="130" x2="620" y2="130" class="connector"/>
+  <circle cx="592" cy="130" r="4" fill="#00bcf2" class="pulse-dot"/>
+  <circle cx="607" cy="130" r="4" fill="#00bcf2" class="pulse-dot-delay1"/>
+  
+  <!-- ============ Azure Kubernetes Service ============ -->
+  <g transform="translate(620, 66)">
+    <rect x="0" y="0" width="540" height="290" fill="#121212" stroke="#326ce5" stroke-width="2" class="box"/>
+    
+    <!-- AKS Header -->
+    <g transform="translate(12, 14)">
+      <g class="logo-glow">
+        <circle cx="20" cy="20" r="18" fill="url(#k8sGrad)"/>
+        <circle cx="20" cy="20" r="6" fill="none" stroke="#fff" stroke-width="1.5"/>
+        <line x1="20" y1="5" x2="20" y2="12" stroke="#fff" stroke-width="1.5"/>
+        <line x1="20" y1="28" x2="20" y2="35" stroke="#fff" stroke-width="1.5"/>
+        <line x1="5" y1="20" x2="12" y2="20" stroke="#fff" stroke-width="1.5"/>
+        <line x1="28" y1="20" x2="35" y2="20" stroke="#fff" stroke-width="1.5"/>
+        <line x1="9" y1="9" x2="14" y2="14" stroke="#fff" stroke-width="1.5"/>
+        <line x1="26" y1="26" x2="31" y2="31" stroke="#fff" stroke-width="1.5"/>
+        <line x1="31" y1="9" x2="26" y2="14" stroke="#fff" stroke-width="1.5"/>
+        <line x1="9" y1="31" x2="14" y2="26" stroke="#fff" stroke-width="1.5"/>
+      </g>
+      <text x="50" y="28" class="title">Azure Kubernetes Service</text>
+    </g>
+    
+    <!-- Three workload pods: Frontend, Backend, Orchestrator -->
+    <g transform="translate(15, 70)">
+      <!-- Frontend Pod -->
+      <rect x="0" y="0" width="165" height="195" fill="#1a1a1a" stroke="#54a3ff" stroke-width="1.5" class="box"/>
+      <g class="logo-glow" transform="translate(12, 10)">
+        <circle cx="14" cy="14" r="14" fill="url(#k8sGrad)"/>
+        <text x="14" y="19" font-family="Segoe UI" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">pod</text>
+      </g>
+      <text x="50" y="30" class="label">Frontend</text>
+      <text x="12" y="60" class="sublabel">React + Vite SPA</text>
+      <text x="12" y="82" class="sublabel">nginx · MSAL</text>
+      <text x="12" y="104" class="sublabel">Quality Measures Build</text>
+      <text x="12" y="126" class="sublabel">Quality Measures Test</text>
+      <text x="12" y="148" class="sublabel">/api → Backend</text>
+      <text x="12" y="170" class="sublabel">/fhir → Backend</text>
+
+      <!-- Backend Pod -->
+      <rect x="175" y="0" width="165" height="195" fill="#1a1a1a" stroke="#54a3ff" stroke-width="1.5" class="box"/>
+      <g class="logo-glow" transform="translate(187, 10)">
+        <circle cx="14" cy="14" r="14" fill="url(#k8sGrad)"/>
+        <text x="14" y="19" font-family="Segoe UI" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">pod</text>
+      </g>
+      <text x="225" y="30" class="label">Backend</text>
+      <text x="187" y="60" class="sublabel">FastAPI (Python)</text>
+      <text x="187" y="82" class="sublabel">Entra JWT on /api/*</text>
+      <text x="187" y="104" class="sublabel">Quality Measures</text>
+      <text x="187" y="126" class="sublabel">Build &amp; Test</text>
+      <text x="187" y="148" class="sublabel">Calls Orchestrator</text>
+      <text x="187" y="170" class="sublabel">OpenTelemetry</text>
+
+      <!-- Orchestrator Pod -->
+      <rect x="350" y="0" width="165" height="195" fill="#1a1a1a" stroke="#54a3ff" stroke-width="1.5" class="box"/>
+      <g class="logo-glow" transform="translate(362, 10)">
+        <circle cx="14" cy="14" r="14" fill="url(#mcpGrad)"/>
+        <text x="14" y="19" font-family="Segoe UI" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">pod</text>
+      </g>
+      <text x="400" y="30" class="label">Orchestrator</text>
+      <text x="362" y="60" class="sublabel">MCP service</text>
+      <text x="362" y="82" class="sublabel">CQL + AI measures</text>
+      <text x="362" y="104" class="sublabel">Diagnostic traces</text>
+      <text x="362" y="126" class="sublabel">Workload Identity</text>
+      <text x="362" y="148" class="sublabel"></text>
+      <text x="362" y="170" class="sublabel"></text>
+    </g>
+  </g>
+  
+  <!-- ============ Connection: AKS to Resources ============ -->
+  <line x1="890" y1="356" x2="890" y2="372" class="connector"/>
+  <circle cx="890" cy="361" r="4" fill="#00bcf2" class="pulse-dot-v"/>
+  <circle cx="890" cy="369" r="4" fill="#00bcf2" class="pulse-dot-v-delay1"/>
+  
+  <!-- ============ RESOURCES BOX (Under AKS) ============ -->
+  <g transform="translate(620, 372)">
+    <rect x="0" y="0" width="540" height="210" fill="#121212" stroke="#666" stroke-width="2" class="box"/>
+    <text x="270" y="20" class="title" text-anchor="middle">Resources</text>
+    
+    <!-- Row 1: AI Foundry, Fabric, Cosmos DB, SQL Database -->
+    <g transform="translate(15, 32)">
+      <rect x="0" y="0" width="120" height="38" fill="#1a1a1a" stroke="#666" stroke-width="1" class="box"/>
+      <circle cx="20" cy="19" r="12" fill="url(#foundryGrad)"/>
+      <text x="20" y="24" font-family="Segoe UI" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">AI</text>
+      <text x="42" y="24" class="sublabel">Foundry</text>
+    </g>
+    <g transform="translate(145, 32)">
+      <rect x="0" y="0" width="120" height="38" fill="#1a1a1a" stroke="#666" stroke-width="1" class="box"/>
+      <rect x="8" y="7" width="22" height="22" fill="#117865" rx="3"/>
+      <text x="19" y="23" font-family="Segoe UI" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">Fb</text>
+      <text x="42" y="24" class="sublabel">Fabric</text>
+    </g>
+    <g transform="translate(275, 32)">
+      <rect x="0" y="0" width="120" height="38" fill="#1a1a1a" stroke="#666" stroke-width="1" class="box"/>
+      <circle cx="20" cy="19" r="12" fill="#0078d4"/>
+      <ellipse cx="20" cy="19" rx="6" ry="3" fill="#fff"/>
+      <text x="42" y="24" class="sublabel">Cosmos DB</text>
+    </g>
+    <g transform="translate(405, 32)">
+      <rect x="0" y="0" width="120" height="38" fill="#1a1a1a" stroke="#666" stroke-width="1" class="box"/>
+      <g transform="translate(8, 9)">
+        <ellipse cx="11" cy="3" rx="10" ry="3" fill="#a4262c"/>
+        <path d="M 1 3 L 1 17 Q 11 21 21 17 L 21 3" fill="#a4262c" stroke="#fff" stroke-width="0.5"/>
+        <ellipse cx="11" cy="9" rx="10" ry="3" fill="none" stroke="#fff" stroke-width="0.5"/>
+        <ellipse cx="11" cy="14" rx="10" ry="3" fill="none" stroke="#fff" stroke-width="0.5"/>
+      </g>
+      <text x="42" y="24" class="sublabel">SQL DB</text>
+    </g>
+    
+    <!-- Row 2: Storage, Key Vault, ACR, Agents 365 -->
+    <g transform="translate(15, 68)">
+      <rect x="0" y="0" width="120" height="38" fill="#1a1a1a" stroke="#666" stroke-width="1" class="box"/>
+      <rect x="8" y="8" width="22" height="22" fill="#0078d4" rx="2"/>
+      <rect x="12" y="12" width="14" height="3" fill="#fff" rx="1"/>
+      <rect x="12" y="17" width="14" height="3" fill="#fff" rx="1"/>
+      <rect x="12" y="22" width="9" height="3" fill="#fff" rx="1"/>
+      <text x="42" y="24" class="sublabel">Storage</text>
+    </g>
+    <g transform="translate(145, 68)">
+      <rect x="0" y="0" width="120" height="38" fill="#1a1a1a" stroke="#666" stroke-width="1" class="box"/>
+      <rect x="8" y="7" width="22" height="22" fill="#f7931e" rx="2"/>
+      <circle cx="19" cy="16" r="5" fill="none" stroke="#fff" stroke-width="1.5"/>
+      <rect x="17" y="20" width="5" height="7" fill="#fff" rx="1"/>
+      <text x="42" y="24" class="sublabel">Key Vault</text>
+    </g>
+    <g transform="translate(275, 68)">
+      <rect x="0" y="0" width="120" height="38" fill="#1a1a1a" stroke="#666" stroke-width="1" class="box"/>
+      <rect x="8" y="7" width="22" height="22" fill="#0078d4" rx="2"/>
+      <rect x="12" y="11" width="14" height="14" fill="none" stroke="#fff" stroke-width="1.5" rx="1"/>
+      <rect x="15" y="14" width="8" height="8" fill="#fff" rx="1"/>
+      <text x="42" y="24" class="sublabel">ACR</text>
+    </g>
+    <g transform="translate(405, 68)">
+      <rect x="0" y="0" width="120" height="38" fill="#1a1a1a" stroke="#666" stroke-width="1" class="box"/>
+      <rect x="8" y="7" width="22" height="22" fill="#6264A7" rx="3"/>
+      <text x="19" y="23" font-family="Segoe UI" font-size="9" font-weight="bold" fill="#fff" text-anchor="middle">365</text>
+      <text x="42" y="24" class="sublabel">Agents 365</text>
+    </g>
+    
+    <!-- Row 3: Purview, Agent ID, Private Net, RBAC -->
+    <g transform="translate(15, 108)">
+      <rect x="0" y="0" width="120" height="38" fill="#1a1a1a" stroke="#666" stroke-width="1" class="box"/>
+      <circle cx="20" cy="19" r="12" fill="#742774"/>
+      <path d="M 14 19 L 26 19 M 20 13 L 20 25" stroke="#fff" stroke-width="2"/>
+      <text x="42" y="24" class="sublabel">Purview</text>
+    </g>
+    <g transform="translate(145, 108)">
+      <rect x="0" y="0" width="120" height="38" fill="#1a1a1a" stroke="#666" stroke-width="1" class="box"/>
+      <g class="logo-glow" transform="translate(6, 8)">
+        <polygon points="12,0 22,9 12,18 2,9" fill="url(#entraGrad)"/>
+        <polygon points="12,3 19,9 12,15 5,9" fill="#1a1a1a"/>
+        <polygon points="12,6 16,9 12,12 8,9" fill="url(#entraGrad)"/>
+      </g>
+      <text x="35" y="24" class="sublabel">Agent ID</text>
+    </g>
+    <g transform="translate(275, 108)">
+      <rect x="0" y="0" width="120" height="38" fill="#1a1a1a" stroke="#666" stroke-width="1" class="box"/>
+      <g transform="translate(8, 8)">
+        <circle cx="6" cy="11" r="5" fill="#27ae60"/>
+        <circle cx="22" cy="11" r="5" fill="#27ae60"/>
+        <path d="M 6 11 L 22 11" stroke="#27ae60" stroke-width="2"/>
+        <path d="M 11 4 L 17 4 L 17 18 L 11 18 Z" fill="none" stroke="#27ae60" stroke-width="1.5"/>
+      </g>
+      <text x="42" y="24" class="sublabel">Private Net</text>
+    </g>
+    <g transform="translate(405, 108)">
+      <rect x="0" y="0" width="120" height="38" fill="#1a1a1a" stroke="#666" stroke-width="1" class="box"/>
+      <path d="M 22 7 L 34 12 L 34 20 C 34 30 22 34 22 34 C 22 34 10 30 10 20 L 10 12 Z" fill="#27ae60"/>
+      <text x="22" y="24" font-family="Segoe UI" font-size="10" font-weight="bold" fill="#fff" text-anchor="middle">✓</text>
+      <text x="45" y="24" class="sublabel">RBAC</text>
+    </g>
+  </g>
+</svg>

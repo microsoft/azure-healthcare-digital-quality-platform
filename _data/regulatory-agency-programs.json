@@ -1,0 +1,119 @@
+[
+  {
+    "id": "program-cms-uf",
+    "agencyId": "agency-cms",
+    "name": "Adult Universal Foundation",
+    "shortName": "Universal Foundation",
+    "description": "Cross-program adult universal foundation measure set used as a common core across CMS quality programs.",
+    "reportingPeriod": {"start": "2026-01-01", "end": "2026-12-31"},
+    "requiredMeasures": ["CMS165v9"]
+  },
+  {
+    "id": "program-cms-mssp",
+    "agencyId": "agency-cms",
+    "name": "Medicare Shared Savings Program",
+    "shortName": "MSSP",
+    "description": "Accountable Care Organizations report quality through the APP Plus measure set under MSSP.",
+    "reportingPeriod": {"start": "2026-01-01", "end": "2026-12-31"},
+    "requiredMeasures": ["CMS122v11", "CMS165v9"]
+  },
+  {
+    "id": "program-cms-qpp-app",
+    "agencyId": "agency-cms",
+    "name": "Quality Payment Program — APM Performance Pathway",
+    "shortName": "QPP APP",
+    "description": "MIPS APM reporting framework using a streamlined fixed measure set.",
+    "reportingPeriod": {"start": "2026-01-01", "end": "2026-12-31"},
+    "requiredMeasures": ["CMS122v11", "CMS165v9"]
+  },
+  {
+    "id": "program-cms-mips",
+    "agencyId": "agency-cms",
+    "name": "Merit-based Incentive Payment System",
+    "shortName": "MIPS",
+    "description": "Eligible clinician program scoring quality, cost, improvement activities, and Promoting Interoperability.",
+    "reportingPeriod": {"start": "2026-01-01", "end": "2026-12-31"},
+    "requiredMeasures": ["CMS122v11", "CMS165v9"]
+  },
+  {
+    "id": "program-cms-hospital-iqr",
+    "agencyId": "agency-cms",
+    "name": "Hospital Inpatient Quality Reporting",
+    "shortName": "Hospital IQR",
+    "description": "Hospital quality measures including obstetric complications and severe maternal morbidity.",
+    "reportingPeriod": {"start": "2026-01-01", "end": "2026-12-31"},
+    "requiredMeasures": ["ePC02"]
+  },
+  {
+    "id": "program-cms-oqr",
+    "agencyId": "agency-cms",
+    "name": "Hospital Outpatient Quality Reporting",
+    "shortName": "OQR",
+    "description": "Outpatient hospital quality reporting program for ED, imaging, and procedural care.",
+    "reportingPeriod": {"start": "2026-01-01", "end": "2026-12-31"},
+    "requiredMeasures": []
+  },
+  {
+    "id": "program-cms-ascqr",
+    "agencyId": "agency-cms",
+    "name": "Ambulatory Surgical Center Quality Reporting",
+    "shortName": "ASCQR",
+    "description": "Quality reporting program for Medicare-certified ambulatory surgery centers.",
+    "reportingPeriod": {"start": "2026-01-01", "end": "2026-12-31"},
+    "requiredMeasures": []
+  },
+  {
+    "id": "program-cms-ipfqr",
+    "agencyId": "agency-cms",
+    "name": "Inpatient Psychiatric Facility Quality Reporting",
+    "shortName": "IPFQR",
+    "description": "Quality reporting for inpatient psychiatric facilities.",
+    "reportingPeriod": {"start": "2026-01-01", "end": "2026-12-31"},
+    "requiredMeasures": []
+  },
+  {
+    "id": "program-cms-esrd-qip",
+    "agencyId": "agency-cms",
+    "name": "ESRD Quality Incentive Program",
+    "shortName": "ESRD QIP",
+    "description": "Pay-for-performance program for outpatient dialysis facilities.",
+    "reportingPeriod": {"start": "2026-01-01", "end": "2026-12-31"},
+    "requiredMeasures": []
+  },
+  {
+    "id": "program-cms-pchqr",
+    "agencyId": "agency-cms",
+    "name": "PPS-Exempt Cancer Hospital Quality Reporting",
+    "shortName": "PCHQR",
+    "description": "Quality reporting program for PPS-exempt cancer hospitals.",
+    "reportingPeriod": {"start": "2026-01-01", "end": "2026-12-31"},
+    "requiredMeasures": []
+  },
+  {
+    "id": "program-cms-rehqr",
+    "agencyId": "agency-cms",
+    "name": "Inpatient Rehabilitation Facility Quality Reporting",
+    "shortName": "IRF QRP",
+    "description": "Quality reporting program for inpatient rehabilitation facilities.",
+    "reportingPeriod": {"start": "2026-01-01", "end": "2026-12-31"},
+    "requiredMeasures": []
+  },
+  {
+    "id": "program-tjc-oryx",
+    "agencyId": "agency-tjc",
+    "name": "ORYX Hospital Performance Measurement",
+    "shortName": "ORYX",
+    "description": "Joint Commission's accreditation-required performance measurement program for hospitals.",
+    "reportingPeriod": {"start": "2026-01-01", "end": "2026-12-31"},
+    "requiredMeasures": ["ePC02"]
+  },
+  {
+    "id": "program-ncqa-hedis",
+    "agencyId": "agency-ncqa",
+    "name": "Healthcare Effectiveness Data and Information Set",
+    "shortName": "HEDIS",
+    "description": "NCQA's measure set used by health plans for quality reporting and accreditation.",
+    "reportingPeriod": {"start": "2026-01-01", "end": "2026-12-31"},
+    "requiredMeasures": ["CMS122v11", "CMS165v9"]
+  }
+]

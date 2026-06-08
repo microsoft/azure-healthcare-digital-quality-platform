@@ -1,0 +1,115 @@
+{
+  "resourceType": "Bundle",
+  "id": "consumers-pat-102",
+  "type": "collection",
+  "meta": {
+    "tag": [
+      { "system": "https://contoso.health/consumers", "code": "sample" },
+      { "system": "https://contoso.health/consumers/measure", "code": "CMS165v9" }
+    ]
+  },
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "PAT-102",
+        "identifier": [{ "system": "urn:mrn", "value": "PAT-102" }],
+        "name": [{ "use": "official", "family": "Tanaka", "given": ["Ken"] }],
+        "gender": "male",
+        "birthDate": "1968-09-04",
+        "telecom": [{ "system": "email", "value": "ken.tanaka@example.com" }]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "cond-htn",
+        "subject": { "reference": "Patient/PAT-102" },
+        "code": {
+          "coding": [{ "system": "http://snomed.info/sct", "code": "59621000", "display": "Essential hypertension" }],
+          "text": "Essential hypertension"
+        },
+        "clinicalStatus": { "coding": [{ "code": "active" }] },
+        "onsetDateTime": "2019-05-10"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-102-a",
+        "subject": { "reference": "Patient/PAT-102" },
+        "status": "finished",
+        "class": { "code": "AMB", "display": "ambulatory" },
+        "type": [{ "coding": [{ "system": "http://snomed.info/sct", "code": "185349003", "display": "Encounter for check up" }] }],
+        "period": { "start": "2024-02-09", "end": "2024-02-09" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-102-b",
+        "subject": { "reference": "Patient/PAT-102" },
+        "status": "finished",
+        "class": { "code": "AMB", "display": "ambulatory" },
+        "type": [{ "coding": [{ "system": "http://snomed.info/sct", "code": "185349003", "display": "Encounter for check up" }] }],
+        "period": { "start": "2024-08-18", "end": "2024-08-18" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "enc-102-c",
+        "subject": { "reference": "Patient/PAT-102" },
+        "status": "finished",
+        "class": { "code": "AMB", "display": "ambulatory" },
+        "type": [{ "coding": [{ "system": "http://snomed.info/sct", "code": "185349003", "display": "Encounter for check up" }] }],
+        "period": { "start": "2025-05-02", "end": "2025-05-02" }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-102-bp-1",
+        "status": "final",
+        "subject": { "reference": "Patient/PAT-102" },
+        "encounter": { "reference": "Encounter/enc-102-a" },
+        "code": { "coding": [{ "system": "http://loinc.org", "code": "85354-9", "display": "Blood pressure panel" }] },
+        "effectiveDateTime": "2024-02-09",
+        "component": [
+          { "code": { "coding": [{ "system": "http://loinc.org", "code": "8480-6" }] }, "valueQuantity": { "value": 148, "unit": "mm[Hg]" } },
+          { "code": { "coding": [{ "system": "http://loinc.org", "code": "8462-4" }] }, "valueQuantity": { "value": 94, "unit": "mm[Hg]" } }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-102-bp-2",
+        "status": "final",
+        "subject": { "reference": "Patient/PAT-102" },
+        "encounter": { "reference": "Encounter/enc-102-b" },
+        "code": { "coding": [{ "system": "http://loinc.org", "code": "85354-9", "display": "Blood pressure panel" }] },
+        "effectiveDateTime": "2024-08-18",
+        "component": [
+          { "code": { "coding": [{ "system": "http://loinc.org", "code": "8480-6" }] }, "valueQuantity": { "value": 144, "unit": "mm[Hg]" } },
+          { "code": { "coding": [{ "system": "http://loinc.org", "code": "8462-4" }] }, "valueQuantity": { "value": 90, "unit": "mm[Hg]" } }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-102-bp-3",
+        "status": "final",
+        "subject": { "reference": "Patient/PAT-102" },
+        "encounter": { "reference": "Encounter/enc-102-c" },
+        "code": { "coding": [{ "system": "http://loinc.org", "code": "85354-9", "display": "Blood pressure panel" }] },
+        "effectiveDateTime": "2025-05-02",
+        "component": [
+          { "code": { "coding": [{ "system": "http://loinc.org", "code": "8480-6" }] }, "valueQuantity": { "value": 134, "unit": "mm[Hg]" } },
+          { "code": { "coding": [{ "system": "http://loinc.org", "code": "8462-4" }] }, "valueQuantity": { "value": 84, "unit": "mm[Hg]" } }
+        ]
+      }
+    }
+  ]
+}

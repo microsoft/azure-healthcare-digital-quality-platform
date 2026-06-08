@@ -1,0 +1,96 @@
+# =========================================
+# CronJob — nightly REINFORCE policy update for cohort-chat
+# =========================================
+# Pulls the last 24h of chat episodes (graded by the orchestrator's async
+# judge) and applies a single REINFORCE batch to the policy snapshot stored
+# in Cosmos (`dq/policies`). The orchestrator hot-reloads the snapshot via
+# POST /chat/policy/reload after this job runs (kicked from the postStop
+# handler below or manually).
+#
+# See _docs/AGENTS_RL_CHAT_DESIGN.md §11 and
+# .speckit/specifications/spec_chat_rl.md §9.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cohort-chat-policy-trainer
+  namespace: dq
+  labels:
+    app: cohort-chat-policy-trainer
+    agent: digital-quality-orchestrator
+    surface: cohort-chat
+spec:
+  # 02:00 UTC nightly — well after typical user activity in EU/Americas.
+  schedule: "0 2 * * *"
+  # Don't queue concurrent runs — REINFORCE updates the same snapshot row.
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800  # 30 min hard cap
+      template:
+        metadata:
+          labels:
+            app: cohort-chat-policy-trainer
+            azure.workload.identity/use: "true"
+        spec:
+          serviceAccountName: mcp-agent-sa
+          restartPolicy: OnFailure
+          containers:
+          - name: trainer
+            # Reuse the orchestrator image — it already ships
+            # azure-agents-learning-sdk and the `agent-learn` console script
+            # via requirements.txt.
+            image: ${CONTAINER_REGISTRY}/orchestrator:${IMAGE_TAG}
+            imagePullPolicy: IfNotPresent
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                set -e
+                echo "[trainer] starting REINFORCE batch for agent=${LEARNING_AGENT_ID}"
+                python -m agent_learning.cli train \
+                  --agent-id "${LEARNING_AGENT_ID}" \
+                  --limit 500
+                echo "[trainer] requesting orchestrator policy hot-reload"
+                # Best-effort — don't fail the Job if the hot-reload call
+                # fails; the next pod restart will pick up the new snapshot.
+                curl -sf -X POST \
+                  "http://orchestrator.dq.svc.cluster.local/chat/policy/reload" \
+                  -H "content-type: application/json" \
+                  -d '{}' || echo "[trainer] hot-reload failed (non-fatal)"
+                echo "[trainer] done"
+            env:
+            - name: AZURE_CLIENT_ID
+              value: "${AGENT_IDENTITY_APP_ID}"
+            - name: AZURE_TENANT_ID
+              value: "${AZURE_TENANT_ID}"
+            - name: LEARNING_AGENT_ID
+              value: "${LEARNING_AGENT_ID}"
+            - name: COSMOSDB_ENDPOINT
+              value: "${COSMOSDB_ENDPOINT}"
+            - name: COSMOSDB_DATABASE_NAME
+              value: "${COSMOSDB_DATABASE_NAME}"
+            # Pass the judge endpoint so any episodes captured WITHOUT
+            # synchronous grading (e.g. captured during chat without
+            # ENABLE_LEARNING_GRADING) get scored before REINFORCE runs.
+            - name: AGENT_LEARNING_JUDGE_ENDPOINT
+              value: "${FOUNDRY_PROJECT_ENDPOINT}"
+            - name: AGENT_LEARNING_JUDGE_DEPLOYMENT
+              value: "${EVALUATOR_MODEL_DEPLOYMENT_NAME}"
+            - name: AZURE_OPENAI_ENDPOINT
+              value: "${FOUNDRY_PROJECT_ENDPOINT}"
+            - name: AZURE_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: orchestrator-secrets
+                  key: AZURE_OPENAI_API_KEY
+                  optional: true
+            resources:
+              requests:
+                cpu: "100m"
+                memory: "256Mi"
+              limits:
+                cpu: "500m"
+                memory: "1Gi"

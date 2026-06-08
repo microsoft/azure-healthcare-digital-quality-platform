@@ -1,0 +1,75 @@
+# Runs the receivers stack of the Azure Healthcare Digital Quality
+# accelerator locally:
+#   * orchestrator  - FastAPI / MCP engine for receiver-side workflows
+#   * backend       - FastAPI API + DEQM ingest router
+#   * frontend      - Nginx-served Vite/React UI
+#
+# From receivers/:
+#   docker compose up --build
+#
+# NOTE (refactor-in-progress): the receivers Dockerfiles still COPY from
+# `submitters/<svc>/...` paths (lifted from the submitters tree). Build
+# contexts are therefore set to the repo root (`..`) so those COPYs
+# resolve. Once the receivers Dockerfiles are rewritten to reference
+# `receivers/<svc>/...`, the contexts can stay as-is; only the COPY paths
+# in the Dockerfiles need to change.
+
+services:
+  orchestrator:
+    build:
+      context: ..
+      dockerfile: receivers/orchestrator/Dockerfile
+    image: azure-healthcare-digital-quality-receivers-orchestrator:local
+    env_file:
+      - ./orchestrator/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "8011:8000"
+    networks:
+      - dq-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  backend:
+    build:
+      context: ..
+      dockerfile: receivers/backend/Dockerfile
+    image: azure-healthcare-digital-quality-receivers-backend:local
+    env_file:
+      - ./backend/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DIGITAL_QUALITY_ORCHESTRATOR_BASE_URL=http://orchestrator:8000
+      - DIGITAL_QUALITY_ORCHESTRATOR_AI_TIMEOUT_SECONDS=180
+      - DEVELOPMENT_MODE=true
+    ports:
+      - "8010:5000"
+    depends_on:
+      orchestrator:
+        condition: service_started
+    networks:
+      dq-net:
+        aliases:
+          - backend.dq.svc.cluster.local
+
+  frontend:
+    build:
+      context: ./frontend
+    image: azure-healthcare-digital-quality-receivers-frontend:local
+    env_file:
+      - ./frontend/.env
+    ports:
+      - "5183:80"
+    depends_on:
+      - backend
+    networks:
+      - dq-net
+
+networks:
+  dq-net:
+    driver: bridge

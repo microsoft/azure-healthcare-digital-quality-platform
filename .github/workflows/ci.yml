@@ -10,33 +10,13 @@ permissions:
   contents: read
 
 jobs:
-  duplicates:
-    name: duplicates / sync-check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run sync-duplicates (check only)
-        run: bash _scripts/sync-duplicates.sh
-
-  forbidden-fields-lint:
-    name: lint / forbidden-fields (non-fatal until Phase 8)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Run forbidden_fields_lint
-        run: python _scripts/forbidden_fields_lint.py
-
   stacks:
     name: stack / ${{ matrix.stack }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        stack: [providers, submitters, receivers, platform]
+        stack: [consumers, providers, submitters, receivers, platform]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python

@@ -261,6 +261,17 @@ measure versions.
 > **Audience:** Payers, ACOs, SaaS quality-reporting vendors that compute
 > measure results and submit them upstream.
 
+> Stack reuse note. The Submitter backend skeleton described in this part
+> (the `/api/patient/*`, `/api/clinical/*`, `/api/diagnostic/*` surface plus
+> the mounted `/fhir`, `/api/workbench`, and `/api/chat` routers) is the
+> shared FastAPI skeleton used by every stack in the repo
+> (`providers/backend`, `consumers/backend`, `submitters/backend`,
+> `receivers/backend`, `platform/backend`). Providers and Consumers add the
+> SOAP-notes and sample-patients routers. Only `submitters/orchestrator/`
+> and `receivers/orchestrator/` ship an orchestrator service. The
+> Submitter-specific behavior described below (DEQM as Producer, Cohort
+> Chat with RL, Submit to Agency) runs on the Submitters stack today.
+
 ### A.1) Submitter Orchestrator
 
 #### A.1.1) Purpose
@@ -531,6 +542,8 @@ flowchart LR
 
 #### A.2.6) API surface — Submitter APIs
 
+The backend mounts three sets of routes:
+
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/` | Liveness (public) |
@@ -544,6 +557,29 @@ flowchart LR
 | GET | `/api/diagnostic/case/{case_id}/summary` | Case summary |
 | GET | `/api/diagnostic/case/{case_id}/traces` | Case tracing events |
 | GET | `/api/diagnostic/case/{case_id}/agent-messages` | Case agent messages |
+
+The Quality Measures Workbench router is mounted at `/api/workbench` (see `submitters/backend/src/workbench.py`):
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET/POST/PATCH/DELETE | `/api/workbench/catalog/measures[/{id}]` | Measure catalog CRUD |
+| POST | `/api/workbench/catalog/measures/{id}/sample-data` | Attach sample FHIR bundles to a measure |
+| GET/POST/DELETE | `/api/workbench/catalog/tags[/{tag_id}]` | Tag CRUD |
+| GET/POST/DELETE | `/api/workbench/catalog/agencies[/{agency_id}]` | Regulatory agency + program CRUD |
+| GET/POST/DELETE | `/api/workbench/cohorts[/{cohort_id}]` | Cohort CRUD |
+| POST | `/api/workbench/cohorts/{cohort_id}/members` | Add a member (FHIR `Bundle`) to a cohort |
+| GET | `/api/workbench/members` | Member lookup |
+| GET/POST | `/api/workbench/submissions[/{submission_id}]` | Submission records |
+| POST | `/api/workbench/submissions/process` | Process a pending submission |
+
+The Cohort Chat router is mounted at `/api/chat`:
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/chat/cohort-question` | Ask a canned cohort-quality question (forwarded to orchestrator) |
+| GET | `/api/chat/episodes/{episode_id}/reward` | Poll the shaped reward for a chat episode |
+
+The Providers and Consumers stacks additionally mount the SOAP-notes router (`/api/patients/{id}/soap-notes`) and the sample-patients router (`/api/sample-patients`) from `soap_notes.py` and `sample_patients.py`.
 
 ##### Measure execution request
 
@@ -563,16 +599,18 @@ enabled engine **in parallel**, merges results, and persists a
 
 #### A.2.7) API surface — DEQM (Submitter as Producer)
 
-The Submitter Backend exposes the operations in §1.4 in the Producer role,
-plus initiates `$submit-data` calls against Receiver endpoints (see §B.2.5).
+The DEQM router is mounted at `/fhir` by `submitters/backend/src/deqm.py`. It exposes the operations in §1.4 in the Producer role, plus a small read-only registry for `Measure` / `Library` artifacts, and initiates `$submit-data` calls against Receiver endpoints (see §B.2.5).
 
 | Operation | Method | Required scope |
 |---|---|---|
 | `GET /fhir/metadata` | GET | (public) |
-| `POST /fhir/Measure/{id}/$data-requirements` | POST | `fhir.deqm.read` |
-| `POST /fhir/Measure/{id}/$collect-data` | POST | `fhir.deqm.read` |
+| `GET /fhir/Measure` | GET | `fhir.deqm.read` |
+| `GET /fhir/Measure/{id}` | GET | `fhir.deqm.read` |
+| `GET /fhir/Library/{id}` | GET | `fhir.deqm.read` |
+| `GET/POST /fhir/Measure/{id}/$data-requirements` | GET/POST | `fhir.deqm.read` |
+| `GET/POST /fhir/Measure/{id}/$collect-data` | GET/POST | `fhir.deqm.read` |
 | `POST /fhir/Measure/{id}/$submit-data` | POST | `fhir.deqm.write` |
-| `POST /fhir/Measure/{id}/$evaluate-measure` | POST | `fhir.deqm.evaluate` |
+| `GET/POST /fhir/Measure/{id}/$evaluate-measure` | GET/POST | `fhir.deqm.evaluate` |
 | `GET /fhir/MeasureReport/{id}` | GET | `fhir.deqm.read` |
 
 #### A.2.8) Data contracts — Cosmos DB
@@ -1092,6 +1130,21 @@ child `chat.grade` span once grading completes.
 > (CMS, state HIEs, Inovalon, Cotiviti) that accept DEQM submissions and
 > produce program rollups.
 
+> Implementation status. The current `receivers/` stack ships the same
+> backend skeleton as `submitters/` (the shared `/api/patient/*`,
+> `/api/clinical/*`, `/api/diagnostic/*`, `/api/workbench/*`, `/api/chat/*`,
+> and `/fhir/*` surface) plus a `measure_submissions` Cosmos helper for
+> persisting incoming DEQM submissions, and a mirror `receivers/orchestrator/`
+> with the same MCP entry points as the submitter orchestrator. The
+> receiver-specific architecture described below (a dedicated
+> `/api/submissions`, `/api/programs`, `/api/rollup` surface, an Azure
+> Service Bus intake queue (`dq-submissions`), an AKS-job factory for
+> interactive CQL processing, a physically separate `dq-receiver` Cosmos
+> database, a separate APIM product, and the dedicated `intake_*` modules
+> shown in §B.2.6 / §B.3.4) is the target design. It is **not implemented
+> today**; this part describes the intended end-state and the migration is
+> staged in §5.
+
 ### B.1) Persona and intent
 
 A **Receiver** ingests submissions from one or many **Submitters**. The
@@ -1405,6 +1458,14 @@ to prevent accidental cross-tenant joins.
 > evaluation on customer PHI. Microsoft operates the accelerator codebase
 > and an **opt-in, summary-only, PHI-free** analytics pipeline.
 
+> **Implementation status.** The opt-in analytics envelope, customer-side
+> aggregator CronJob, Microsoft-tenant Event Hub (`dq-analytics-ingest`),
+> Azure Data Explorer ingest, the "Settings → Analytics" opt-in UI, and the
+> forbidden-field linter described below are the target design. They are
+> **not implemented today**; the `platform/` stack is the home for this
+> work and currently ships only the shared backend skeleton plus its own
+> frontend.
+
 ### C.1) Purpose
 
 Allow both Submitter and Receiver customers to opt in to sending
@@ -1570,12 +1631,18 @@ flowchart LR
 ## 5) Dual-Stack Implementation Plan
 
 > **Status (superseded):** The two-stack plan described below has been
-> superseded by the four-stack refactor that is now in place
-> (`submitters/`, `receivers/`, `platform/`, `providers/` with shared
-> support directories `_data/`, `_docs/`, `_evals/`, `_images/`,
-> `_measures/`, `_scripts/`, `_tests/`). The historical text is retained
-> for context; see [REFACTORING_PLAN.md](REFACTORING_PLAN.md) and the
-> root `README.md` for the current layout.
+> superseded by the **five-stack layout** that is now in place. The
+> repository currently ships `consumers/`, `providers/`, `submitters/`,
+> `receivers/`, and `platform/`, plus the shared support directories
+> `_data/`, `_docs/`, `_images/`, and `_measures/` (only those four
+> underscore-prefixed dirs exist today). Each stack carries its own
+> `backend/`, `frontend/`, `_infra/`, `azure.yaml`, and
+> `docker-compose.yml`; `submitters/` and `receivers/` additionally ship
+> an `orchestrator/`. There is no top-level `shared/` package today; code
+> reuse is by per-stack copies of the same modules (`workbench.py`,
+> `chat.py`, `deqm.py`, etc.). The historical two-stack text below is
+> retained for context only; see the root `README.md` for the current
+> layout.
 
 The accelerator currently ships as a single stack (`infra/`, `backend/`,
 `frontend/`, `orchestrator/`). To support both Submitter and Receiver

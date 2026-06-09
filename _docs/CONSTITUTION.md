@@ -98,10 +98,10 @@ Enable **digital quality measurement (dQM)** solutions that are:
 
 ### 10.4 Specification‑Driven Development
 
-- **SpecKit Methodology**: All agents defined via structured specifications before implementation
-- **GitHub Copilot Integration**: Copilot accelerates agent development from specifications
-- **Test-First Approach**: Acceptance criteria are testable and automated
-- **Schema Evolution**: Specifications drive code, not vice versa
+- **Spec-first authoring**: structured specifications in `_docs/` drive implementation.
+- **GitHub Copilot Integration**: Copilot accelerates agent development from specifications.
+- **Test-First Approach**: Acceptance criteria are testable and automated.
+- **Schema Evolution**: Specifications drive code, not vice versa.
 
 ### 10.5 Continuous Evaluation & Improvement
 
@@ -131,8 +131,8 @@ Enable **digital quality measurement (dQM)** solutions that are:
 - Comprehensive docstrings (Google style)
 - Unit tests with >80% coverage for core logic
 - Integration tests for end-to-end workflows
-- UV as exclusive dependency manager
-- FastAPI for MCP server endpoints
+- `pip` with per-stack `requirements.txt` for Python dependencies (one file per backend, orchestrator, and stack root)
+- FastAPI for backend and MCP server endpoints
 - Azure SDK for service integration
 - OpenTelemetry for distributed tracing
 - Pydantic for request/response validation
@@ -210,19 +210,19 @@ Enable **digital quality measurement (dQM)** solutions that are:
 
 ## 11) Practical Defaults (Repo‑level)
 
-The accelerator ships as four independently deployable stacks (`providers/`, `submitters/`, `receivers/`, `platform/`) plus underscore-prefixed support directories shared across stacks.
+The accelerator ships as five independently deployable stacks (`consumers/`, `providers/`, `submitters/`, `receivers/`, `platform/`) plus underscore-prefixed support directories shared across stacks.
 
 | Directory | Purpose |
 |-----------|---------|
-| `<stack>/{backend,frontend,orchestrator}/` | Per-stack services (Submitters is the active reference implementation; Receivers mirrors it; Platform and Providers are phase-0 stubs) |
+| `<stack>/backend/` | FastAPI backend present in every stack. Exposes the shared `/api/patient/*`, `/api/clinical/*`, `/api/summarize`, `/api/patient/{id}/measure`, `/api/diagnostic/case/*` surface plus the `/fhir/**` DEQM router, the `/api/workbench/**` catalog/cohort/submission router, and the `/api/chat/**` cohort-chat router. Providers and Consumers additionally include the SOAP-notes and sample-patients routers. |
+| `<stack>/frontend/` | React 18 + TypeScript + Vite 6 single-page app present in every stack. Uses MSAL Browser/React for sign-in and Redux Toolkit for store wiring. Ships the Catalog, Cohorts, Patient, and Quality Measures pages; Providers and Consumers additionally ship the Patients page. |
+| `<stack>/orchestrator/` | MCP service present only in `submitters/` and `receivers/`. Hosts the native and AI CQL executors, the `/tools/compute-quality-measures` endpoint, and the `/chat/answer` and `/chat/policy/reload` cohort-chat endpoints. |
 | `<stack>/_infra/` | Stack-scoped Bicep (`main.bicep` + `app/`, `core/` modules) |
+| `<stack>/_data/` | Stack-scoped sample data. Present in `providers/` (soap notes, sample patients) and `consumers/` (multi-encounter sample patients). |
 | `<stack>/azure.yaml` | Stack-scoped `azd` service manifest |
 | `<stack>/docker-compose.yml` | Local-dev orchestration for the stack |
-| `_measures/` | Authoritative measure artifacts (CQL + value sets + narrative) |
-| `_data/` | Sample FHIR bundles and seed catalog data |
-| `_evals/` | Evaluation harnesses and baseline datasets |
-| `_tests/` | Cross-stack pytest integration tests |
-| `_scripts/` | Bootstrap and operational scripts |
-| `_docs/` | Architecture, identity, evaluation, and operations docs |
+| `_measures/` | Authoritative measure artifacts (CQL + narrative markdown) for CMS122v11, CMS165v9, and ePC02. |
+| `_data/` | Shared seed data read by every stack's workbench seeder: `cohorts.json`, `measures.json`, `measures-tags.json`, `patients.json`, `regulatory-agencies.json`, `regulatory-agency-programs.json`. |
+| `_docs/` | Architecture, identity, evaluation, and operations docs (currently `CONSTITUTION.md` and `SPECIFICATION.md`). |
 | `_images/` | README assets |
 

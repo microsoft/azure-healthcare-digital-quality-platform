@@ -26,9 +26,9 @@ Per-stack runtime shared by all five stacks: request flow through API Management
 
 The same stack serves three distinct digital quality measure (DQM) processing modes:
 
-- **Asynchronous request DQM processing** — single-patient, on-demand evaluation. The frontend or an external caller posts one request through APIM to the backend, the orchestrator computes the measure against the patient's FHIR bundle, and the resulting `MeasureReport` is returned to the caller and persisted in `dq/cohorts`.
-- **Retroactive DQM batch processing** — cohort-wide evaluation over a closed measurement period (defaults to the previous full calendar year to match CMS retrospective reporting). The Workbench fans out one orchestrator call per cohort member, aggregates the population counts, and packages the results into a `WorkbenchSubmission` for the selected regulatory agency program.
-- **Prospective DQM batch processing** — forward-looking forecast for an open or upcoming measurement period. The orchestrator combines partial-period FHIR data with RL surveillance telemetry to project performance and surface at-risk patients before the period closes, so submitters can intervene rather than just report.
+- **Asynchronous request DQM processing.** Single-patient, on-demand evaluation. The frontend or an external caller posts one request through APIM to the backend, the orchestrator computes the measure against the patient's FHIR bundle, and the resulting `MeasureReport` is returned to the caller and persisted in `dq/cohorts`.
+- **Retroactive DQM batch processing.** Cohort-wide evaluation over a closed measurement period (defaults to the previous full calendar year to match CMS retrospective reporting). The Workbench fans out one orchestrator call per cohort member, aggregates the population counts, and packages the results into a `WorkbenchSubmission` for the selected regulatory agency program.
+- **Prospective DQM batch processing.** Forward-looking forecast for an open or upcoming measurement period. The orchestrator combines partial-period FHIR data with RL surveillance telemetry to project performance and surface at-risk patients before the period closes, so submitters can intervene rather than just report.
 
 <p align="center">
   <img src="_images/sa.png" alt="Solution Architecture" />
@@ -37,19 +37,19 @@ The same stack serves three distinct digital quality measure (DQM) processing mo
 
 ## Components
 
-Each stack contains three components. Paths below use the Submitters stack as the canonical example; the Receivers and Consumers stacks mirror the same layout, and the Platform and Providers stacks ship as phase-0 FastAPI stubs that will be filled out in later phases.
+Every stack (`consumers/`, `providers/`, `submitters/`, `receivers/`, `platform/`) ships the same skeleton: a Python 3.11 FastAPI `backend/`, a React 18 + Vite 6 `frontend/`, and Bicep templates under `_infra/`. The Consumers and Providers stacks additionally mount the SOAP-notes and sample-patients routers, and the Submitters and Receivers stacks additionally ship an MCP `orchestrator/` service. Paths below use the Submitters stack as the canonical example.
 
 The Consumers stack adds a patient-facing intake surface on top of the shared layout: SOAP notes per encounter, multi-encounter sample patients, and on-demand local execution of the three accelerator measures (CMS122v11, CMS165v9, ePC02v1) against a single patient's FHIR bundle. See [`consumers/backend/src/soap_notes.py`](consumers/backend/src/soap_notes.py), [`consumers/backend/src/local_measures.py`](consumers/backend/src/local_measures.py), and [`consumers/frontend/src/pages/PatientsPage.tsx`](consumers/frontend/src/pages/PatientsPage.tsx).
 
-- [`submitters/orchestrator/`](submitters/orchestrator) — MCP service that executes digital quality measures. The orchestrator provisions the Azure platform and runs the MCP service that computes digital quality measures.
-- [`submitters/backend/`](submitters/backend) — FastAPI backend exposing quality-measure build and test APIs. The backend exposes build and test APIs and delegates measure execution to the orchestrator.
-- [`submitters/frontend/`](submitters/frontend) — React + Vite single-page app authenticating with MSAL for building and testing quality measures. The frontend lets users build and test quality measures.
+- [`submitters/orchestrator/`](submitters/orchestrator). MCP service that executes digital quality measures. The orchestrator provisions the Azure platform and runs the MCP service that computes digital quality measures.
+- [`submitters/backend/`](submitters/backend). FastAPI backend exposing quality-measure build and test APIs. The backend exposes build and test APIs and delegates measure execution to the orchestrator.
+- [`submitters/frontend/`](submitters/frontend). React + Vite single-page app authenticating with MSAL for building and testing quality measures. The frontend lets users build and test quality measures.
 
 ### Orchestrator ([`submitters/orchestrator/`](submitters/orchestrator))
 
 The orchestrator provides the platform's infrastructure and the MCP service that executes digital quality measures. It deploys via `azd` (Bicep templates in [`submitters/_infra/`](submitters/_infra)) and runs as the `dq` workload on AKS, fronted by Azure API Management with OAuth and Azure Workload Identity. The backend calls the orchestrator to compute CQL/AI-driven digital quality measures.
 
-For detailed architecture diagrams and component specifications, see [_docs/AGENTS_ARCHITECTURE.md](_docs/AGENTS_ARCHITECTURE.md).
+For the non-negotiable platform principles and the full technical specification, see [_docs/CONSTITUTION.md](_docs/CONSTITUTION.md) and [_docs/SPECIFICATION.md](_docs/SPECIFICATION.md).
 
 ### Backend ([`submitters/backend/`](submitters/backend))
 
@@ -65,9 +65,9 @@ FastAPI backend (Python 3.11 + Uvicorn/Gunicorn) deployed to AKS. Exposes digita
 
 React 18 + TypeScript 5 + Vite 6 single-page app served by nginx behind an NGINX Ingress on AKS. Authenticates users via Microsoft Entra ID (MSAL) with group-based authorization and reverse-proxies `/api` to the backend.
 
-- **Quality Measures Build** — author and configure digital quality measures
-- **Quality Measures Test** — execute quality measures and review results
-- **Quality Measures Workbench** — Catalog and Cohort surfaces backed by the `dq/catalog` and `dq/cohorts` Cosmos containers (see [Workbench](#quality-measures-workbench) below)
+- **Quality Measures Build.** Author and configure digital quality measures.
+- **Quality Measures Test.** Execute quality measures and review results.
+- **Quality Measures Workbench.** Catalog and Cohort surfaces backed by the `dq/catalog` and `dq/cohorts` Cosmos containers, served from the `/api/workbench/*` router in [`submitters/backend/src/workbench.py`](submitters/backend/src/workbench.py).
 
 Stack: React, TypeScript, Vite, Redux Toolkit, MSAL Browser/React, Tailwind CSS, Axios.
 
@@ -75,65 +75,193 @@ Stack: React, TypeScript, Vite, Redux Toolkit, MSAL Browser/React, Tailwind CSS,
 
 ## Repository Layout
 
-The repo is organized as five independently deployable stacks (`consumers/`, `providers/`, `submitters/`, `receivers/`, `platform/`) plus underscore-prefixed support directories shared by all stacks.
+The repo is organized as five independently deployable stacks (`consumers/`, `providers/`, `submitters/`, `receivers/`, `platform/`) plus four underscore-prefixed support directories shared by all stacks.
 
 ```text
 azure-healthcare-digital-quality-platform/
-├── .azure/                 # azd environments (per-stack)
-├── _data/                  # Test FHIR bundles and seed catalog data
-├── _docs/                  # Architecture, identity, evaluation docs
-├── _evals/                 # Quality-measure evaluation harness
-├── _images/                # README assets
-├── _measures/              # CQL + markdown measure definitions
-├── _scripts/               # Bootstrap and operational scripts
-├── _tests/                 # Integration tests
-├── consumers/              # Consumers stack (patient-facing intake)
+├── _data/
+│   ├── cohorts.json
+│   ├── measures.json
+│   ├── measures-tags.json
+│   ├── patients.json
+│   ├── regulatory-agencies.json
+│   └── regulatory-agency-programs.json
+├── _docs/
+│   ├── CONSTITUTION.md
+│   └── SPECIFICATION.md
+├── _images/
+├── _measures/
+│   ├── CMS122v11_DiabetesHbA1cPoorControl.cql
+│   ├── CMS122v11_DiabetesHbA1cPoorControl.md
+│   ├── CMS165v9_ControllingHighBloodPressure.cql
+│   ├── CMS165v9_ControllingHighBloodPressure.md
+│   ├── ePC02_SevereObstetricComplications.cql
+│   └── ePC02_SevereObstetricComplications.md
+├── consumers/
 │   ├── azure.yaml
 │   ├── docker-compose.yml
-│   ├── _data/              # Multi-encounter sample patients (FHIR R4)
-│   ├── _infra/             # Bicep (AKS, APIM, Cosmos, ...)
+│   ├── _data/
+│   │   ├── consumers_soap_notes.json
+│   │   └── sample_patients/
+│   ├── _infra/
+│   │   ├── main.bicep
+│   │   ├── main.parameters.json
+│   │   ├── abbreviations.json
+│   │   ├── app/
+│   │   ├── core/
+│   │   └── hooks/
 │   ├── backend/
-│   │   ├── src/            # SOAP notes router, local-measure evaluator
-│   │   ├── k8s/
-│   │   └── Dockerfile
+│   │   ├── Dockerfile
+│   │   ├── requirements.txt
+│   │   ├── src/
+│   │   └── k8s/
 │   └── frontend/
-│       ├── src/            # Patients tab + SOAP editor
-│       ├── k8s/
+│       ├── Dockerfile
+│       ├── package.json
+│       ├── vite.config.ts
+│       ├── src/
 │       ├── nginx/
-│       └── Dockerfile
-├── providers/              # Providers stack (phase-0 stub)
-│   ├── main.py
-│   ├── requirements.txt
-│   └── docker-compose.yml
-├── submitters/             # Submitters stack (active)
+│       └── k8s/
+├── providers/
 │   ├── azure.yaml
 │   ├── docker-compose.yml
-│   ├── _infra/             # Bicep (AKS, APIM, Cosmos, Foundry, ...)
+│   ├── _data/
+│   │   ├── consumers_soap_notes.json
+│   │   └── sample_patients/
+│   ├── _infra/
+│   │   ├── main.bicep
+│   │   ├── main.parameters.json
+│   │   ├── abbreviations.json
+│   │   ├── app/
+│   │   ├── core/
+│   │   └── hooks/
 │   ├── backend/
+│   │   ├── Dockerfile
+│   │   ├── requirements.txt
 │   │   ├── src/
-│   │   ├── k8s/
-│   │   └── Dockerfile
-│   ├── frontend/
-│   │   ├── src/
-│   │   ├── k8s/
-│   │   ├── nginx/
-│   │   └── Dockerfile
-│   └── orchestrator/
+│   │   └── k8s/
+│   └── frontend/
+│       ├── Dockerfile
+│       ├── package.json
+│       ├── vite.config.ts
 │       ├── src/
-│       ├── k8s/
-│       └── Dockerfile
-├── receivers/              # Receivers stack (mirrors submitters layout)
+│       ├── nginx/
+│       └── k8s/
+├── submitters/
+│   ├── azure.yaml
+│   ├── docker-compose.yml
+│   ├── requirements.txt
+│   ├── _infra/
+│   │   ├── main.bicep
+│   │   ├── main.parameters.json
+│   │   ├── abbreviations.json
+│   │   ├── app/
+│   │   ├── core/
+│   │   └── hooks/
+│   ├── backend/
+│   │   ├── Dockerfile
+│   │   ├── requirements.txt
+│   │   ├── src/
+│   │   └── k8s/
+│   ├── frontend/
+│   │   ├── Dockerfile
+│   │   ├── package.json
+│   │   ├── vite.config.ts
+│   │   ├── src/
+│   │   ├── nginx/
+│   │   └── k8s/
+│   └── orchestrator/
+│       ├── Dockerfile
+│       ├── requirements.txt
+│       ├── src/
+│       └── k8s/
+├── receivers/
 │   ├── azure.yaml
 │   ├── docker-compose.yml
 │   ├── _infra/
+│   │   ├── main.bicep
+│   │   ├── main.parameters.json
+│   │   ├── abbreviations.json
+│   │   ├── app/
+│   │   ├── core/
+│   │   └── hooks/
 │   ├── backend/
+│   │   ├── Dockerfile
+│   │   ├── requirements.txt
+│   │   ├── src/
+│   │   └── k8s/
 │   ├── frontend/
+│   │   ├── Dockerfile
+│   │   ├── package.json
+│   │   ├── vite.config.ts
+│   │   ├── src/
+│   │   ├── nginx/
+│   │   └── k8s/
 │   └── orchestrator/
-└── platform/               # Platform stack (phase-0 stub)
+│       ├── Dockerfile
+│       ├── requirements.txt
+│       ├── src/
+│       └── k8s/
+└── platform/
+    ├── azure.yaml
+    ├── docker-compose.yml
     ├── main.py
     ├── requirements.txt
-    └── docker-compose.yml
+    ├── runcmd.json
+    ├── _infra/
+    │   ├── main.bicep
+    │   ├── main.parameters.json
+    │   ├── abbreviations.json
+    │   ├── app/
+    │   ├── core/
+    │   └── hooks/
+    ├── backend/
+    │   ├── Dockerfile
+    │   ├── requirements.txt
+    │   ├── src/
+    │   └── k8s/
+    └── frontend/
+        ├── Dockerfile
+        ├── package.json
+        ├── vite.config.ts
+        ├── src/
+        ├── nginx/
+        └── k8s/
 ```
+
+Notes on the layout:
+
+- `_data/` is the shared seed dataset read by every stack's workbench seeder.
+- `_measures/` ships authoritative CQL + narrative markdown for CMS122v11, CMS165v9, and ePC02; the orchestrator Dockerfile copies it from the repo root.
+- `_docs/` currently holds `CONSTITUTION.md` and `SPECIFICATION.md`.
+- Each stack's `_infra/main.bicep` provisions a self-contained set of Azure resources (see [Resource Groups](#resource-groups)).
+- `consumers/` and `providers/` ship the same backend and frontend skeleton plus their own `_data/` (`consumers_soap_notes.json` and a `sample_patients/` FHIR R4 directory).
+- `submitters/backend/src/` adds `measure_runner.py` and `measurement_history.py` on top of the shared backend.
+- `submitters/` and `receivers/` are the only stacks that ship an `orchestrator/` (MCP service: native + AI CQL executors, `/tools/compute-quality-measures`, cohort-chat endpoints, and the RL CronJob template under `orchestrator/k8s/`).
+- `receivers/` is currently the submitter skeleton plus a `measure_submissions` Cosmos helper; the Service-Bus-driven receiver architecture in the spec is the target design.
+- `platform/backend/` omits the SOAP-notes and sample-patients routers that Consumers and Providers mount; `platform/main.py` and `platform/runcmd.json` are stack-root helpers for local orchestration.
+
+---
+
+## Resource Groups
+
+Each stack has its own `azure.yaml` and `_infra/main.bicep`, so each `azd up` provisions a dedicated Azure resource group named `rg-${environmentName}`. With the default azd environments (`dq-consumers`, `dq-providers`, `dq-submitters`, `dq-receivers`, `dq-platform`), the resulting resource groups are:
+
+![Resource groups](_images/rg-dq.png)
+
+| Stack       | azd env name    | Stack resource group | AKS-managed node resource group   |
+|-------------|-----------------|----------------------|-----------------------------------|
+| Consumers   | `dq-consumers`  | `rg-dq-consumers`    | `MC_rg-dq-consumers_<aks>_<region>`  |
+| Providers   | `dq-providers`  | `rg-dq-providers`    | `MC_rg-dq-providers_<aks>_<region>`  |
+| Submitters  | `dq-submitters` | `rg-dq-submitters`   | `MC_rg-dq-submitters_<aks>_<region>` |
+| Receivers   | `dq-receivers`  | `rg-dq-receivers`    | `MC_rg-dq-receivers_<aks>_<region>`  |
+| Platform    | `dq-platform`   | `rg-dq-platform`     | `MC_rg-dq-platform_<aks>_<region>`   |
+
+The stack resource group holds the application-tier resources defined in the stack's Bicep: the AKS cluster control plane, Azure Container Registry, API Management, Cosmos DB account, Key Vault, Log Analytics workspace + Application Insights, AI Foundry / OpenAI account, AI Search, Storage account, and any user-assigned managed identities used by workload identity federation.
+
+The AKS-managed node resource group is created and owned by AKS itself (you do not pass it to Bicep). It holds the per-node infrastructure: the VMSS for each node pool, NICs, NSGs, route tables, public IPs, internal load balancer, and disks. Image-pull caches, kubelet, and the workload-identity webhook all run inside this group. The operational notes in [AKS operational notes](#aks-operational-notes) reference it as `MC_<cluster>_<region>` for VMSS start commands.
+
+Stacks are independently deployable, identity-scoped, and network-scoped: nothing in one stack's Bicep depends on resources in another stack's resource group. Tearing down a single stack with `azd down` removes only its `rg-dq-<stack>` and the matching `MC_*` node group, leaving the other four stacks untouched.
 
 ---
 
@@ -155,7 +283,6 @@ Developer workflow with VS Code, GitHub Copilot, the Python ecosystem, GitHub Ac
 - [Python 3.11+](https://www.python.org/downloads/)
 - [Node.js 20+](https://nodejs.org/)
 - [pip](https://pip.pypa.io/en/stable/installation/)
-- [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - [VS Code](https://code.visualstudio.com/download)
 - [GitHub Copilot](https://github.com/features/copilot) with premium coding models (GPT-5.2-Codex, Claude 4.5 Opus, Sonnet)
 
@@ -188,7 +315,7 @@ The `azd up` command deploys all infrastructure and automatically configures:
 
 ### Per-Service Build & Deploy
 
-Each app folder has its own Dockerfile and Kubernetes manifest. The backend and orchestrator Dockerfiles `COPY` from `submitters/<svc>/...`, `_data/`, and `_measures/`, so the build context must be the repo root. Build and roll images independently (example shown for the Submitters stack; substitute `receivers/` for the Receivers stack):
+Each app folder has its own Dockerfile and Kubernetes manifest. The backend and orchestrator Dockerfiles `COPY` from `<stack>/<svc>/...`, `_data/`, and `_measures/`, so the build context must be the repo root. Build and roll images independently. The example below uses the Submitters stack; substitute `consumers/`, `providers/`, `receivers/`, or `platform/` for any other stack (and skip the orchestrator block for the stacks that do not ship one):
 
 ```bash
 # Orchestrator
@@ -213,12 +340,12 @@ kubectl set image deploy/frontend \
   -n dq
 ```
 
-Or bring the whole stack up locally with the per-stack compose file:
+Or bring the whole stack up locally with the per-stack compose file (any stack folder works the same way):
 
 ```bash
 cd submitters && docker compose up --build
 # or
-cd receivers  && docker compose up --build
+cd consumers  && docker compose up --build
 ```
 
 ---
@@ -231,9 +358,6 @@ kubectl get pods -n dq
 
 # Verify services
 kubectl get svc -n dq
-
-# Run integration tests
-python _tests/test_mcp_connection.py --use-az-token
 ```
 
 ### AKS operational notes
@@ -246,23 +370,16 @@ python _tests/test_mcp_connection.py --use-az-token
 
 ## Related Repositories
 
-- [azure-healthcare-digital-quality-cql-sqk](https://github.com/ctava-msft/azure-healthcare-digital-quality-cql-sqk) — CQL execution SDK consumed by the orchestrator
+- [azure-healthcare-digital-quality-cql-sdk](https://github.com/ctava-msft/azure-healthcare-digital-quality-cql-sdk). CQL execution SDK consumed by the orchestrator.
 
 ---
 
 ## Documentation
 
-| Document                                                            | Description                                      |
-| ------------------------------------------------------------------- | ------------------------------------------------ |
-| [AGENTS_ARCHITECTURE.md](_docs/AGENTS_ARCHITECTURE.md)               | Platform architecture and component diagrams     |
-| [AGENTS_DEPLOYMENT_NOTES.md](_docs/AGENTS_DEPLOYMENT_NOTES.md)       | Detailed deployment notes                        |
-| [AGENTS_IDENTITY_DESIGN.md](_docs/AGENTS_IDENTITY_DESIGN.md)         | Identity architecture design                     |
-| [AGENTS_EVALUATIONS.md](_docs/AGENTS_EVALUATIONS.md)                 | Evaluation framework for quality measures        |
-| [AGENTS_TEST_RESULTS.md](_docs/AGENTS_TEST_RESULTS.md)               | Integration test results                         |
-| [DEFENDER_FOR_CLOUD.md](_docs/DEFENDER_FOR_CLOUD.md)                 | Defender for Cloud deployment and testing guide  |
-| [SECURITY_REVIEW.md](_docs/SECURITY_REVIEW.md)                       | Security review: private networking and identity |
-| [PURVIEW_INTEGRATION.md](_docs/PURVIEW_INTEGRATION.md)                | Purview data governance and compliance guide     |
-| [REFACTORING_PLAN.md](_docs/REFACTORING_PLAN.md)                     | Four-stack refactor plan and phase tracker       |
+| Document                                       | Description                                                                                          |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| [CONSTITUTION.md](_docs/CONSTITUTION.md)       | Non-negotiable platform principles, security/privacy posture, and repo-level practical defaults.     |
+| [SPECIFICATION.md](_docs/SPECIFICATION.md)     | Three-part technical specification (Submitters / Receivers / Microsoft), plus dual-stack plan notes. |
 
 ---
 
@@ -327,5 +444,4 @@ python _tests/test_mcp_connection.py --use-az-token
 - [Docker Desktop](https://docs.docker.com/desktop/)
 - [GitHub Copilot](https://github.com/features/copilot)
 - [kubectl](https://kubernetes.io/docs/reference/kubectl/)
-- [uv](https://docs.astral.sh/uv/)
 - [VS Code](https://code.visualstudio.com/)

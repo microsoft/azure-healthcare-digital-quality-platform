@@ -71,6 +71,7 @@ React 18 + TypeScript 5 + Vite 6 single-page app served by nginx behind an NGINX
 
 Stack: React, TypeScript, Vite, Redux Toolkit, MSAL Browser/React, Tailwind CSS, Axios.
 
+
 ---
 
 ## Repository Layout
@@ -312,6 +313,80 @@ The `azd up` command deploys all infrastructure and automatically configures:
 - API Management with OAuth endpoints
 - Orchestrator MCP service with workload identity
 - LoadBalancer service connected to the APIM backend
+
+### Microsoft Entra ID Setup
+
+The frontends authenticate with MSAL and the backends validate JWT bearer tokens issued by Microsoft Entra ID. You need one **App Registration** plus a matching **Enterprise Application** with two app roles assigned to your users. Do this once per tenant before running the frontends.
+
+#### 1. Create the App Registration
+
+1. In the Azure portal go to **Microsoft Entra ID > App registrations > New registration**.
+2. Name it (for example `dq-platform`), pick **Accounts in this organizational directory only**, and leave Redirect URI blank for now. Click **Register**.
+3. From the **Overview** blade copy the **Application (client) ID** and **Directory (tenant) ID**. These become `VITE_AZURE_CLIENT_ID` and the GUID in `VITE_AZURE_AUTHORITY` in each frontend's `.env`.
+
+#### 2. Configure SPA Redirect URIs
+
+Open **Authentication**, click **Add a platform > Single-page application**, and add one redirect URI for every frontend host you intend to sign into. The platform ships five production frontends and Vite picks an open port between 5173 and 5177 for local dev, so register all of them up front.
+
+![SPA redirect URIs](_images/spa-urls.png)
+
+Required entries:
+
+- `http://localhost:5173` through `http://localhost:5177` (local Vite dev for each stack).
+- `https://dq-consumers-frontend.eastus2.cloudapp.azure.com`
+- `https://dq-providers-frontend.eastus2.cloudapp.azure.com`
+- `https://dq-submitters-frontend.eastus2.cloudapp.azure.com`
+- `https://dq-receivers-frontend.eastus2.cloudapp.azure.com`
+- `https://dq-platform-frontend.eastus2.cloudapp.azure.com`
+
+Substitute your own ingress hostnames if you changed the defaults in each stack's `frontend/k8s/`. Trailing slashes matter, do not add one.
+
+Under **Implicit grant and hybrid flows** leave both checkboxes off. MSAL uses PKCE.
+
+#### 3. Define App Roles
+
+Open **App roles > Create app role** and add the two roles the backend reads from the `roles` claim on every JWT (see [`submitters/backend/src/auth_middleware.py`](submitters/backend/src/auth_middleware.py)).
+
+![App roles](_images/app-roles.png)
+
+| Display name | Value   | Allowed member types     | Description |
+|--------------|---------|--------------------------|-------------|
+| `user`       | `user`  | Users/Groups, Applications | Standard read/write access to the frontend. |
+| `admin`      | `admin` | Users/Groups, Applications | Adds administrative actions (cohort management, workbench writes). |
+
+The `Value` strings are what end up in the access token's `roles` array, the backend matches on the value, not the display name.
+
+#### 4. Assign users in the Enterprise Application
+
+Creating the App Registration auto-creates a matching Enterprise Application (service principal) in the same tenant. Role assignments live there, not in the App Registration.
+
+1. Go to **Microsoft Entra ID > Enterprise applications**, search for the name you used in step 1, and open it.
+2. Open **Properties** and set **Assignment required?** to **Yes**. With this off, any tenant user can sign in without a role and the backend will reject them with a 403.
+3. Open **Users and groups > Add user/group**, pick the user (or a security group), pick `user` or `admin`, and click **Assign**. Repeat for each role you want that principal to hold. A principal can hold both roles, in which case the JWT contains `["user","admin"]`.
+
+![Enterprise app users and groups](_images/enterprise-app-assignment.png)
+
+#### 5. Wire the frontend `.env`
+
+Each stack's frontend reads three Vite variables. Update them in `<stack>/frontend/.env` for local dev and `<stack>/frontend/.env.production` for the image baked into the container:
+
+```bash
+VITE_AZURE_CLIENT_ID=<application-client-id-from-step-1>
+VITE_AZURE_AUTHORITY=https://login.microsoftonline.com/<directory-tenant-id-from-step-1>
+VITE_AZURE_REDIRECT_URI=http://localhost:5173        # or the matching https://...cloudapp.azure.com host
+```
+
+The k8s manifest in `<stack>/frontend/k8s/deployment.yaml` substitutes the same three variables from a ConfigMap, so re-apply (or re-render with `envsubst`) after changing them.
+
+#### 6. Verify
+
+Sign in to the frontend, open the browser devtools, copy the access token from the MSAL cache or from a `/api/*` request header, and paste it into <https://jwt.ms>. The decoded payload should contain:
+
+- `aud` matching your client ID.
+- `iss` matching your tenant.
+- `roles` containing `user` and/or `admin`.
+
+If `roles` is missing, the user has not been assigned in the Enterprise Application (step 4). If sign-in itself fails with `AADSTS50011` (reply URL mismatch), the frontend host is not in the SPA Redirect URIs list (step 2).
 
 ### Per-Service Build & Deploy
 

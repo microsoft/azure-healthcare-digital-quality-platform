@@ -1,0 +1,49 @@
+# Copy to terraform.tfvars and edit. Only one target_platform block needs to
+# be filled in; the rest are ignored.
+
+target_platform = "azure"   # azure | aws | gcp | kubernetes | docker
+stack           = "submitters"
+environment     = "dev"
+name_prefix     = "ahdqp"
+image_tag       = "v1.0.0"
+
+# --- Azure ---------------------------------------------------------------
+region = "eastus2"
+azure = {
+  subscription_id = "00000000-0000-0000-0000-000000000000"
+  aks_node_size   = "Standard_D2s_v5"
+  aks_node_count  = 2
+}
+
+# --- AWS -----------------------------------------------------------------
+# region = "us-west-2"
+# aws = {
+#   eks_version = "1.30"
+#   node_size   = "t3.large"
+#   node_count  = 2
+# }
+
+# --- GCP -----------------------------------------------------------------
+# region = "us-central1"
+# gcp = {
+#   project_id = "my-gcp-project"
+#   node_size  = "e2-standard-2"
+#   node_count = 2
+# }
+
+# --- Bring-your-own Kubernetes -------------------------------------------
+# kubernetes_byo = {
+#   kubeconfig_path    = "~/.kube/config"
+#   kubeconfig_context = "my-cluster"
+#   registry           = "registry.example.com/ahdqp"
+# }
+
+# --- Local Docker --------------------------------------------------------
+# docker_local = {
+#   build_context = "../.."   # path to repo root from this directory
+#   host_port_map = {
+#     backend      = 8000
+#     frontend     = 5173
+#     orchestrator = 8001
+#   }
+# }

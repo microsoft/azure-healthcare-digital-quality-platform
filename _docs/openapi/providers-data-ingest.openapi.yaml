@@ -1,0 +1,342 @@
+openapi: 3.0.3
+info:
+  title: Providers Data Ingest API
+  version: 0.1.0
+  description: Contracts for provider-side clinical data intake and DEQM submit-data payloads.
+servers:
+  - url: https://dq-providers-frontend.eastus2.cloudapp.azure.com
+    description: Providers AKS ingress
+security:
+  - bearerAuth: []
+paths:
+  /api/patient:
+    post:
+      summary: Save patient data
+      operationId: savePatientData
+      description: Accepts a patient record or a FHIR Bundle. The backend derives the patient key from mrn, Patient.id, or Patient.identifier.value.
+      tags:
+        - patient-data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientDataPayload'
+            examples:
+              fhirBundle:
+                summary: FHIR Bundle with Patient resource
+                value:
+                  resourceType: Bundle
+                  type: collection
+                  entry:
+                    - resource:
+                        resourceType: Patient
+                        id: p-cms165-001
+                        identifier:
+                          - system: urn:mrn
+                            value: p-cms165-001
+              flatPatient:
+                summary: Flat patient record with mrn
+                value:
+                  mrn: p-cms165-001
+                  displayName: Taylor Brooks
+                  birthDate: '1968-04-11'
+                  gender: male
+      responses:
+        '200':
+          description: Patient data saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientSaveResponse'
+        '400':
+          description: Patient identifier could not be derived.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication failed or was not provided.
+        '500':
+          description: Patient data could not be saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/clinical/patients:
+    post:
+      summary: Save clinical patient data
+      operationId: saveClinicalPatient
+      description: Accepts the same patient or FHIR Bundle payload as /api/patient and stores it in the clinical container.
+      tags:
+        - patient-data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientDataPayload'
+      responses:
+        '200':
+          description: Clinical patient data saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClinicalPatientSaveResponse'
+        '400':
+          description: Patient identifier could not be derived.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication failed or was not provided.
+        '500':
+          description: Clinical patient data could not be saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /fhir/Measure/{measureId}/$submit-data:
+    post:
+      summary: Submit DEQM data for a measure
+      operationId: submitDeqmData
+      description: Accepts a FHIR Parameters resource for the DEQM submit-data operation and persists the inbound submission.
+      tags:
+        - deqm
+      parameters:
+        - name: measureId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: CMS165v9
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema:
+              $ref: '#/components/schemas/FhirParameters'
+            examples:
+              submitDataParameters:
+                summary: MeasureReport plus collected resource bundle
+                value:
+                  resourceType: Parameters
+                  parameter:
+                    - name: measureReport
+                      resource:
+                        resourceType: MeasureReport
+                        status: complete
+                        type: data-collection
+                        measure: Measure/CMS165v9
+                        subject:
+                          reference: Patient/p-cms165-001
+                        date: '2025-06-18T00:00:00Z'
+                        period:
+                          start: '2025-01-01'
+                          end: '2025-12-31'
+                    - name: resource
+                      resource:
+                        resourceType: Bundle
+                        type: collection
+                        entry: []
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FhirParameters'
+      responses:
+        '201':
+          description: Submission accepted.
+          headers:
+            Location:
+              description: Canonical MeasureReport location assigned to the accepted submission.
+              schema:
+                type: string
+          content:
+            application/fhir+json:
+              schema:
+                $ref: '#/components/schemas/FhirOperationOutcome'
+        '400':
+          description: Request body was not a FHIR Parameters resource.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: '#/components/schemas/FhirOperationOutcome'
+        '401':
+          description: Authentication failed or was not provided.
+        '404':
+          description: Measure id was not found.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: '#/components/schemas/FhirOperationOutcome'
+        '500':
+          description: Submission could not be persisted.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: '#/components/schemas/FhirOperationOutcome'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    PatientDataPayload:
+      oneOf:
+        - $ref: '#/components/schemas/FhirBundle'
+        - $ref: '#/components/schemas/FlatPatientRecord'
+    FlatPatientRecord:
+      type: object
+      required:
+        - mrn
+      properties:
+        mrn:
+          type: string
+        id:
+          type: string
+        displayName:
+          type: string
+        birthDate:
+          type: string
+          format: date
+        gender:
+          type: string
+        patientResourceId:
+          type: string
+      additionalProperties: true
+    PatientSaveResponse:
+      type: object
+      required:
+        - status
+        - mrn
+      properties:
+        status:
+          type: string
+          enum:
+            - patient data saved
+        mrn:
+          type: string
+    ClinicalPatientSaveResponse:
+      type: object
+      required:
+        - status
+        - memberId
+      properties:
+        status:
+          type: string
+          enum:
+            - clinical patient data saved
+        memberId:
+          type: string
+    FhirParameters:
+      type: object
+      required:
+        - resourceType
+      properties:
+        resourceType:
+          type: string
+          enum:
+            - Parameters
+        parameter:
+          type: array
+          items:
+            $ref: '#/components/schemas/FhirParameter'
+      additionalProperties: true
+    FhirParameter:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        valueString:
+          type: string
+        valueDate:
+          type: string
+          format: date
+        valueDateTime:
+          type: string
+          format: date-time
+        valueCode:
+          type: string
+        valueBoolean:
+          type: boolean
+        valueReference:
+          type: object
+          additionalProperties: true
+        resource:
+          $ref: '#/components/schemas/FhirResource'
+      additionalProperties: true
+    FhirBundle:
+      type: object
+      required:
+        - resourceType
+      properties:
+        resourceType:
+          type: string
+          enum:
+            - Bundle
+        id:
+          type: string
+        type:
+          type: string
+          example: collection
+        total:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        entry:
+          type: array
+          items:
+            $ref: '#/components/schemas/FhirBundleEntry'
+      additionalProperties: true
+    FhirBundleEntry:
+      type: object
+      properties:
+        fullUrl:
+          type: string
+        resource:
+          $ref: '#/components/schemas/FhirResource'
+      additionalProperties: true
+    FhirResource:
+      type: object
+      required:
+        - resourceType
+      properties:
+        resourceType:
+          type: string
+      additionalProperties: true
+    FhirOperationOutcome:
+      type: object
+      required:
+        - resourceType
+      properties:
+        resourceType:
+          type: string
+          enum:
+            - OperationOutcome
+        issue:
+          type: array
+          items:
+            type: object
+            properties:
+              severity:
+                type: string
+              code:
+                type: string
+              diagnostics:
+                type: string
+      additionalProperties: true
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        detail:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object

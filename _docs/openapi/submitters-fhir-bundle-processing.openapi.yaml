@@ -1,0 +1,287 @@
+openapi: 3.0.3
+info:
+  title: Submitters FHIR Bundle Processing API
+  version: 0.1.0
+  description: Contract for the cross-stack payload that sends provider cohort members and FHIR Bundles to submitters for measure processing.
+servers:
+  - url: https://dq-submitters-frontend.eastus2.cloudapp.azure.com
+    description: Submitters AKS ingress
+security:
+  - bearerAuth: []
+paths:
+  /api/workbench/submissions/process:
+    post:
+      summary: Receive FHIR bundles for cohort processing
+      operationId: processSubmission
+      description: Persists the forwarded cohort, stores each member bundle, creates a submission row, and dispatches measure execution.
+      tags:
+        - submissions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmissionProcessRequest'
+            examples:
+              providerCohortSubmission:
+                summary: Provider cohort with member bundles
+                value:
+                  cohort:
+                    id: cohort-diabetes
+                    name: Diabetes cohort
+                    description: Patients selected for quality reporting
+                    memberIds:
+                      - p-cms122-001
+                    tags:
+                      - tag-mips
+                    measureIds:
+                      - CMS122v11
+                      - CMS165v9
+                  members:
+                    - id: p-cms122-001
+                      displayName: Alex Morgan
+                      birthDate: '1975-06-03'
+                      gender: female
+                      patientResourceId: p-cms122-001
+                      mrn: p-cms122-001
+                      bundle:
+                        resourceType: Bundle
+                        type: collection
+                        entry:
+                          - resource:
+                              resourceType: Patient
+                              id: p-cms122-001
+                  measureIds:
+                    - CMS122v11
+                    - CMS165v9
+                  note: Submitted from providers workbench
+                  sourceSubmissionId: sub-1718749900000
+                  sourceStack: providers
+                  periodStart: '2025-01-01'
+                  periodEnd: '2025-12-31'
+      responses:
+        '200':
+          description: Submission accepted and dispatch attempted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionProcessResponse'
+        '400':
+          description: Request body failed FastAPI or Pydantic validation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FastApiValidationError'
+        '401':
+          description: Authentication failed or was not provided.
+        '503':
+          description: Cohort or submission persistence failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    SubmissionProcessRequest:
+      type: object
+      required:
+        - cohort
+      properties:
+        cohort:
+          $ref: '#/components/schemas/CohortPayload'
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmissionMemberPayload'
+          default: []
+        measureIds:
+          type: array
+          items:
+            type: string
+          default: []
+        note:
+          type: string
+          default: ''
+        sourceSubmissionId:
+          type: string
+          nullable: true
+        sourceStack:
+          type: string
+          default: providers
+        periodStart:
+          type: string
+          format: date
+          nullable: true
+        periodEnd:
+          type: string
+          format: date
+          nullable: true
+    CohortPayload:
+      type: object
+      description: Cohort document forwarded from providers. Additional workbench metadata may be present.
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        memberIds:
+          type: array
+          items:
+            type: string
+        tags:
+          type: array
+          items:
+            type: string
+        measureIds:
+          type: array
+          items:
+            type: string
+      additionalProperties: true
+    SubmissionMemberPayload:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+        bundle:
+          $ref: '#/components/schemas/FhirBundle'
+        displayName:
+          type: string
+          nullable: true
+        birthDate:
+          type: string
+          format: date
+          nullable: true
+        gender:
+          type: string
+          nullable: true
+        patientResourceId:
+          type: string
+          nullable: true
+        mrn:
+          type: string
+          nullable: true
+    FhirBundle:
+      type: object
+      required:
+        - resourceType
+      properties:
+        resourceType:
+          type: string
+          enum:
+            - Bundle
+        id:
+          type: string
+        type:
+          type: string
+          example: collection
+        timestamp:
+          type: string
+          format: date-time
+        entry:
+          type: array
+          items:
+            $ref: '#/components/schemas/FhirBundleEntry'
+      additionalProperties: true
+    FhirBundleEntry:
+      type: object
+      properties:
+        fullUrl:
+          type: string
+        resource:
+          $ref: '#/components/schemas/FhirResource'
+      additionalProperties: true
+    FhirResource:
+      type: object
+      required:
+        - resourceType
+      properties:
+        resourceType:
+          type: string
+      additionalProperties: true
+    SubmissionProcessResponse:
+      type: object
+      required:
+        - submission
+        - dispatch
+      properties:
+        submission:
+          $ref: '#/components/schemas/ProcessedSubmission'
+        dispatch:
+          $ref: '#/components/schemas/DispatchInfo'
+    ProcessedSubmission:
+      type: object
+      required:
+        - id
+        - cohortId
+        - status
+        - memberCount
+        - measureIds
+      properties:
+        id:
+          type: string
+        cohortId:
+          type: string
+        status:
+          type: string
+          enum:
+            - accepted
+            - dispatch_failed
+        memberCount:
+          type: integer
+          minimum: 0
+        measureIds:
+          type: array
+          items:
+            type: string
+    DispatchInfo:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum:
+            - inprocess
+            - kubernetes
+            - failed
+        jobName:
+          type: string
+        namespace:
+          type: string
+        error:
+          type: string
+      additionalProperties: true
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: object
+    FastApiValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            properties:
+              loc:
+                type: array
+                items:
+                  oneOf:
+                    - type: string
+                    - type: integer
+              msg:
+                type: string
+              type:
+                type: string

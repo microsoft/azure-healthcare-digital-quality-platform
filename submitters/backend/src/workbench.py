@@ -18,12 +18,14 @@ import json
 import logging
 import os
 import time
+import uuid
 from copy import deepcopy
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import requests
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 import measure_catalog
@@ -214,6 +216,257 @@ class MeasureSummarySendRequest(BaseModel):
     note: str = ""
     engine: Optional[str] = None
     sourceSubmissionId: Optional[str] = None
+    reportType: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# DEQM FHIR payload builders (cohort-level)
+# ---------------------------------------------------------------------------
+
+_DEQM_VALID_REPORT_TYPES = {"individual", "subject-list", "summary"}
+_POPULATION_CS = "http://terminology.hl7.org/CodeSystem/measure-population"
+
+
+def _deqm_canonical_base() -> str:
+    from measure_catalog import DEFAULT_CANONICAL_BASE  # noqa: PLC0415
+    return os.getenv("DEQM_CANONICAL_BASE", DEFAULT_CANONICAL_BASE).rstrip("/")
+
+
+def _deqm_reporter() -> Dict[str, Any]:
+    """Build a reporter Reference from env vars (DEQM_REPORTER_REFERENCE / DEQM_REPORTER_DISPLAY)."""
+    ref = os.getenv("DEQM_REPORTER_REFERENCE", "").strip()
+    display = os.getenv("DEQM_REPORTER_DISPLAY", "").strip()
+    reporter: Dict[str, Any] = {}
+    if ref:
+        reporter["reference"] = ref
+    if display:
+        reporter["display"] = display
+    if not reporter:
+        reporter["display"] = "Submitters Stack"
+    return reporter
+
+
+def _deqm_pop(code: str, count: int) -> Dict[str, Any]:
+    return {
+        "code": {"coding": [{"system": _POPULATION_CS, "code": code}]},
+        "count": int(count),
+    }
+
+
+def _deqm_group_resource(cohort_id: str, member_ids: List[str]) -> Dict[str, Any]:
+    """Build a minimal FHIR Group describing the cohort."""
+    return {
+        "resourceType": "Group",
+        "id": f"group-{cohort_id}",
+        "type": "person",
+        "actual": True,
+        "quantity": len(member_ids),
+        "member": [{"entity": {"reference": f"Patient/{mid}"}} for mid in member_ids],
+    }
+
+
+def _deqm_fhir_bundle(resources: List[Dict[str, Any]]) -> Dict[str, Any]:
+    return {
+        "resourceType": "Bundle",
+        "id": str(uuid.uuid4()),
+        "type": "collection",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "entry": [{"resource": r} for r in resources if r],
+    }
+
+
+def _build_deqm_fhir_payload(
+    summary_payload: Dict[str, Any],
+    report_type: str,
+) -> Dict[str, Any]:
+    """Build a FHIR MeasureReport (or Bundle) from a cohort rollup.
+
+    Parameters
+    ----------
+    summary_payload:
+        Result of ``_aggregate_summary_payload`` — must contain ``measureIds``,
+        ``perMeasure``, ``perMember``, ``periodStart``, ``periodEnd``, ``cohort``.
+    report_type:
+        One of ``"individual"``, ``"subject-list"``, ``"summary"``.
+
+    Returns
+    -------
+    A FHIR MeasureReport dict (single measure) or a Bundle (multiple measures
+    or individual type).
+    """
+    base = _deqm_canonical_base()
+    reporter = _deqm_reporter()
+    now_ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    cohort = summary_payload.get("cohort") or {}
+    cohort_id = cohort.get("id") or "unknown"
+    period_start = (summary_payload.get("periodStart") or "").strip()
+    period_end = (summary_payload.get("periodEnd") or "").strip()
+    per_measure: List[Dict[str, Any]] = summary_payload.get("perMeasure") or []
+    per_member: List[Dict[str, Any]] = summary_payload.get("perMember") or []
+    member_ids = [m.get("memberId") for m in per_member if m.get("memberId")]
+
+    group_resource = _deqm_group_resource(cohort_id, member_ids)
+    group_ref = {"reference": f"#{group_resource['id']}"}
+    period_block = {"start": period_start, "end": period_end}
+
+    def _measure_canonical(mid: str) -> str:
+        entry = measure_catalog.get_measure_entry(mid) or {}
+        version = entry.get("version") or "1"
+        return f"{base}/Measure/{mid}|{version}"
+
+    if report_type == "summary":
+        reports: List[Dict[str, Any]] = []
+        for rollup in per_measure:
+            mid = rollup.get("measureId") or ""
+            denom = int(rollup.get("denominator") or 0)
+            num = int(rollup.get("numerator") or 0)
+            patients = int(rollup.get("patients") or 0)
+            excl = int(rollup.get("exclusions") or 0)
+            perf = rollup.get("performanceRate")
+
+            populations = [
+                _deqm_pop("initial-population", patients),
+                _deqm_pop("denominator", denom),
+                _deqm_pop("numerator", num),
+            ]
+            if excl:
+                populations.append(_deqm_pop("denominator-exclusion", excl))
+
+            group: Dict[str, Any] = {"population": populations}
+            if perf is not None:
+                try:
+                    group["measureScore"] = {"value": float(perf)}
+                except (TypeError, ValueError):
+                    pass
+
+            report: Dict[str, Any] = {
+                "resourceType": "MeasureReport",
+                "id": str(uuid.uuid4()),
+                "status": "complete",
+                "type": "summary",
+                "measure": _measure_canonical(mid),
+                "subject": group_ref,
+                "reporter": reporter,
+                "date": now_ts,
+                "period": period_block,
+                "group": [group],
+                "contained": [group_resource],
+            }
+            reports.append(report)
+
+        if len(reports) == 1:
+            return reports[0]
+        return _deqm_fhir_bundle(reports)
+
+    if report_type == "subject-list":
+        reports = []
+        for rollup in per_measure:
+            mid = rollup.get("measureId") or ""
+            denom = int(rollup.get("denominator") or 0)
+            num = int(rollup.get("numerator") or 0)
+            patients = int(rollup.get("patients") or 0)
+            excl = int(rollup.get("exclusions") or 0)
+
+            measure_canon = _measure_canonical(mid)
+
+            # Build a contained individual MeasureReport for each member.
+            contained: List[Dict[str, Any]] = [group_resource]
+            indiv_ids: List[str] = []
+            for m in per_member:
+                m_id = m.get("memberId") or ""
+                indiv_id = f"indiv-{cohort_id}-{m_id}-{mid}"
+                # Find this member's row for this measure
+                m_row = next(
+                    (r for r in (m.get("perMeasure") or []) if r.get("measureId") == mid),
+                    {},
+                )
+                m_denom = int(m_row.get("denominator") or 0)
+                m_num = int(m_row.get("numerator") or 0)
+                m_pops = [
+                    _deqm_pop("initial-population", 1),
+                    _deqm_pop("denominator", m_denom),
+                    _deqm_pop("numerator", m_num),
+                ]
+                indiv_report: Dict[str, Any] = {
+                    "resourceType": "MeasureReport",
+                    "id": indiv_id,
+                    "status": "complete",
+                    "type": "individual",
+                    "measure": measure_canon,
+                    "subject": {"reference": f"Patient/{m_id}"},
+                    "reporter": reporter,
+                    "date": now_ts,
+                    "period": period_block,
+                    "group": [{"population": m_pops}],
+                }
+                contained.append(indiv_report)
+                indiv_ids.append(indiv_id)
+
+            # Build populations with subjectResults pointing at all individual reports.
+            sub_results_ref = [{"reference": f"#{iid}"} for iid in indiv_ids]
+            sl_pops = [
+                {**_deqm_pop("initial-population", patients), "subjectResults": sub_results_ref[0] if sub_results_ref else {}},
+                {**_deqm_pop("denominator", denom), "subjectResults": sub_results_ref[0] if sub_results_ref else {}},
+                {**_deqm_pop("numerator", num), "subjectResults": sub_results_ref[0] if sub_results_ref else {}},
+            ]
+            if excl:
+                sl_pops.append(_deqm_pop("denominator-exclusion", excl))
+
+            report = {
+                "resourceType": "MeasureReport",
+                "id": str(uuid.uuid4()),
+                "status": "complete",
+                "type": "subject-list",
+                "measure": measure_canon,
+                "subject": group_ref,
+                "reporter": reporter,
+                "date": now_ts,
+                "period": period_block,
+                "group": [{"population": sl_pops}],
+                "contained": contained,
+            }
+            reports.append(report)
+
+        if len(reports) == 1:
+            return reports[0]
+        return _deqm_fhir_bundle(reports)
+
+    # "individual" — one MeasureReport per member per measure, wrapped in a Bundle
+    individual_reports: List[Dict[str, Any]] = []
+    for rollup in per_measure:
+        mid = rollup.get("measureId") or ""
+        measure_canon = _measure_canonical(mid)
+        for m in per_member:
+            m_id = m.get("memberId") or ""
+            m_row = next(
+                (r for r in (m.get("perMeasure") or []) if r.get("measureId") == mid),
+                {},
+            )
+            m_denom = int(m_row.get("denominator") or 0)
+            m_num = int(m_row.get("numerator") or 0)
+            m_excl = bool(m_row.get("exclusion"))
+            m_pops = [
+                _deqm_pop("initial-population", 1),
+                _deqm_pop("denominator", m_denom),
+                _deqm_pop("numerator", m_num),
+            ]
+            if m_excl:
+                m_pops.append(_deqm_pop("denominator-exclusion", 1))
+            individual_reports.append({
+                "resourceType": "MeasureReport",
+                "id": str(uuid.uuid4()),
+                "status": "complete",
+                "type": "individual",
+                "measure": measure_canon,
+                "subject": {"reference": f"Patient/{m_id}"},
+                "reporter": reporter,
+                "date": now_ts,
+                "period": period_block,
+                "group": [{"population": m_pops}],
+            })
+
+    return _deqm_fhir_bundle(individual_reports)
 
 
 # ---------------------------------------------------------------------------
@@ -1209,6 +1462,185 @@ def create_workbench_router(
             result["status"] = "rejected"
             result["error"] = resp.text[:1000]
         return result
+
+    def _dispatch_measure_report_to(name: str, base_url: str, fhir_payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Dispatch a FHIR MeasureReport (or Bundle) to the target stack's ingest route."""
+        cleaned = (base_url or "").strip()
+        if not cleaned:
+            return {"target": name, "url": None, "status": "skipped"}
+        url = cleaned.rstrip("/") + "/api/workbench/measure-reports"
+        result: Dict[str, Any] = {"target": name, "url": url, "status": "pending"}
+        try:
+            resp = requests.post(
+                url,
+                json=fhir_payload,
+                headers={"Content-Type": "application/fhir+json"},
+                timeout=30,
+            )
+        except Exception as exc:  # noqa: BLE001
+            result["status"] = "failed"
+            result["error"] = str(exc)[:1000]
+            return result
+        result["statusCode"] = resp.status_code
+        if resp.ok:
+            result["status"] = "sent"
+            try:
+                body = resp.json()
+                rid = (body.get("report") or {}).get("id")
+                if rid:
+                    result["remoteReportId"] = rid
+            except ValueError:
+                pass
+        else:
+            result["status"] = "rejected"
+            result["error"] = resp.text[:1000]
+        return result
+
+    @router.post("/cohorts/{cohort_id}/measure-reports")
+    async def send_cohort_measure_reports(
+        cohort_id: str,
+        payload: MeasureSummarySendRequest = Body(...),
+        reportType: Optional[str] = Query(default=None),
+        _user: Dict[str, Any] = Depends(auth_dependency),
+    ):
+        """Build a DEQM MeasureReport (summary/subject-list/individual) from the cohort
+        rollup and dispatch it to the receivers stack.
+
+        Also dispatches the legacy proprietary summary for back-compat.
+        """
+        # Resolve reportType: query param > body field > env default > "summary"
+        rt = (
+            reportType
+            or payload.reportType
+            or os.getenv("DEQM_DEFAULT_REPORT_TYPE", "summary")
+        )
+        if isinstance(rt, str):
+            rt = rt.strip().lower()
+        if rt not in _DEQM_VALID_REPORT_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid reportType: {rt!r}. Must be one of: {', '.join(sorted(_DEQM_VALID_REPORT_TYPES))}",
+            )
+
+        cohort_doc = cohorts_helper.get_doc("cohort", cohort_id)
+        if not cohort_doc:
+            raise HTTPException(status_code=404, detail=f"cohort not found: {cohort_id}")
+
+        agency_doc = catalog_helper.get_doc("agency", payload.agencyId)
+        if not agency_doc:
+            raise HTTPException(status_code=404, detail=f"agency not found: {payload.agencyId}")
+
+        program: Optional[Dict[str, Any]] = None
+        if payload.programId:
+            for p in agency_doc.get("programs") or []:
+                if p.get("id") == payload.programId or p.get("shortName") == payload.programId:
+                    program = p
+                    break
+            if program is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"program not found in agency {payload.agencyId}: {payload.programId}",
+                )
+
+        member_docs: List[Dict[str, Any]] = []
+        for mid in cohort_doc.get("memberIds") or []:
+            mdoc: Optional[Dict[str, Any]] = None
+            for doc_type in ("member", "patient"):
+                try:
+                    found = cohorts_helper.get_doc(doc_type, mid)
+                except Exception:  # noqa: BLE001
+                    found = None
+                if found:
+                    mdoc = found
+                    break
+            if mdoc is None:
+                mdoc = {"id": mid}
+            member_docs.append(mdoc)
+
+        measure_ids = list(payload.measureIds or cohort_doc.get("measureIds") or [])
+
+        send_id = f"mr-send-{_now_ms()}"
+        summary_payload = _aggregate_summary_payload(
+            cohort_doc=cohort_doc,
+            member_docs=member_docs,
+            agency_doc=agency_doc,
+            program=program,
+            measure_ids=measure_ids,
+            period_start=payload.periodStart,
+            period_end=payload.periodEnd,
+            note=payload.note,
+            engine_hint=payload.engine,
+            source_submission_id=payload.sourceSubmissionId,
+            send_id=send_id,
+        )
+
+        if not summary_payload.get("measureIds"):
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "no measureIds resolved for cohort. "
+                    "Run Evaluate on the cohort first or pass measureIds in the request body."
+                ),
+            )
+
+        # Build the FHIR payload from the rollup.
+        fhir_payload = _build_deqm_fhir_payload(summary_payload, rt)
+
+        receivers_url = os.getenv("RECEIVERS_BACKEND_BASE_URL", "http://127.0.0.1:8013")
+        platform_url = os.getenv("PLATFORM_BACKEND_BASE_URL", "http://127.0.0.1:8014")
+
+        dispatch = {
+            # New FHIR route (primary)
+            "receivers": _dispatch_measure_report_to("receivers", receivers_url, fhir_payload),
+            # Legacy proprietary route (back-compat, platform only)
+            "platform": _dispatch_summary_to("platform", platform_url, summary_payload),
+        }
+
+        statuses = {v.get("status") for v in dispatch.values()}
+        active = statuses - {"skipped"}
+        if not active:
+            overall = "skipped"
+        elif active == {"sent"}:
+            overall = "sent"
+        elif "sent" in active:
+            overall = "partial"
+        else:
+            overall = "failed"
+
+        audit_doc = {
+            "id": send_id,
+            "docType": "measure_report_send",
+            "cohortId": cohort_id,
+            "agencyId": payload.agencyId,
+            "programId": payload.programId,
+            "measureIds": summary_payload.get("measureIds") or [],
+            "periodStart": summary_payload.get("periodStart"),
+            "periodEnd": summary_payload.get("periodEnd"),
+            "reportType": rt,
+            "note": payload.note,
+            "status": overall,
+            "createdAt": _now_ms(),
+            "dispatch": dispatch,
+        }
+        try:
+            cohorts_helper.upsert_doc("measure_report_send", send_id, audit_doc)
+        except Exception as exc:  # noqa: BLE001
+            logging.warning("Failed to persist measure_report_send %s: %s", send_id, exc)
+
+        return {"send": audit_doc, "reportType": rt}
+
+    @router.get("/cohorts/{cohort_id}/measure-reports/sends")
+    async def list_cohort_measure_report_sends(
+        cohort_id: str,
+        _user: Dict[str, Any] = Depends(auth_dependency),
+    ):
+        try:
+            rows = cohorts_helper.list_docs("measure_report_send") or []
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=503, detail=str(e))
+        rows = [r for r in rows if r.get("cohortId") == cohort_id]
+        rows.sort(key=lambda r: r.get("createdAt", 0), reverse=True)
+        return {"cohortId": cohort_id, "sends": rows, "count": len(rows)}
 
     @router.post("/cohorts/{cohort_id}/measure-summary/send")
     async def send_cohort_measure_summary(

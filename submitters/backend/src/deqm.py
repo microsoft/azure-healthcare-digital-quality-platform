@@ -41,12 +41,33 @@ from measure_catalog import (
 
 FHIR_MEDIA_TYPE = "application/fhir+json"
 
+VALID_REPORT_TYPES = {"individual", "subject-list", "summary"}
+
 
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
 def _canonical_base() -> str:
     return os.getenv("DEQM_CANONICAL_BASE", DEFAULT_CANONICAL_BASE).rstrip("/")
+
+
+def _reporter_reference() -> Dict[str, Any]:
+    """Build a FHIR Reference for the reporter from env vars.
+
+    Reads ``DEQM_REPORTER_REFERENCE`` (e.g. ``Organization/reporter-org-1``)
+    and ``DEQM_REPORTER_DISPLAY`` for the human-readable label.
+    Falls back to a display-only reference when the env var is absent.
+    """
+    ref = os.getenv("DEQM_REPORTER_REFERENCE", "").strip()
+    display = os.getenv("DEQM_REPORTER_DISPLAY", "").strip()
+    reporter: Dict[str, Any] = {}
+    if ref:
+        reporter["reference"] = ref
+    if display:
+        reporter["display"] = display
+    if not reporter:
+        reporter["display"] = "Submitters Stack"
+    return reporter
 
 
 def _fhir_response(resource: Dict[str, Any], status_code: int = 200, location: Optional[str] = None) -> JSONResponse:
@@ -494,7 +515,23 @@ def create_deqm_router(
         body: Optional[Dict[str, Any]],
         engine_query: Optional[str],
         cohort_id: Optional[str] = None,
+        report_type: Optional[str] = None,
     ) -> JSONResponse:
+        # Resolve reportType: query param > body parameter > env default > "individual"
+        rt = (
+            report_type
+            or _extract_parameter(body, "reportType")
+            or os.getenv("DEQM_DEFAULT_REPORT_TYPE", "individual")
+        )
+        if isinstance(rt, str):
+            rt = rt.strip().lower()
+        if rt not in VALID_REPORT_TYPES:
+            return _operation_outcome(
+                "error", "value",
+                f"Invalid reportType: {rt!r}. Must be one of: {', '.join(sorted(VALID_REPORT_TYPES))}",
+                400,
+            )
+
         entry = get_measure_entry(measure_id)
         if not entry:
             return _operation_outcome("error", "not-found", f"Measure/{measure_id} not found", 404)
@@ -599,17 +636,96 @@ def create_deqm_router(
             measure_id, chosen, engine_result
         )
 
-        report: Dict[str, Any] = {
-            "resourceType": "MeasureReport",
-            "id": report_id,
-            "status": "complete",
-            "type": "individual",
-            "measure": f"{base}/Measure/{measure_id}|{entry['version']}",
-            "subject": {"reference": f"Patient/{subject_id}"},
-            "date": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            "period": {"start": start, "end": end},
-            "group": [{"population": populations}] if populations else [],
-            "extension": [
+        reporter = _reporter_reference()
+        now_ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        measure_canonical = f"{base}/Measure/{measure_id}|{entry['version']}"
+        period_block = {"start": start, "end": end}
+
+        # ---- Build the chosen report shape ----------------------------------
+
+        if rt == "summary":
+            # DEQM Summary MeasureReport: aggregate counts, no per-subject detail.
+            # For a single-subject evaluation the counts are 0 or 1.
+            group: Dict[str, Any] = {"population": populations}
+            try:
+                denom_n = int((chosen or {}).get("inDenominator", 0) or 0)
+                num_n = int((chosen or {}).get("controlled", 0) or 0)
+                perf: Optional[float] = (num_n / denom_n) if denom_n > 0 else None
+            except (TypeError, ValueError, ZeroDivisionError):
+                perf = None
+            if perf is not None:
+                group["measureScore"] = {"value": perf}
+
+            group_resource: Dict[str, Any] = {
+                "resourceType": "Group",
+                "id": f"group-{subject_id}",
+                "type": "person",
+                "actual": True,
+                "quantity": 1,
+                "member": [{"entity": {"reference": f"Patient/{subject_id}"}}],
+            }
+            report = {
+                "resourceType": "MeasureReport",
+                "id": report_id,
+                "status": "complete",
+                "type": "summary",
+                "measure": measure_canonical,
+                "subject": {"reference": f"#group-{subject_id}"},
+                "reporter": reporter,
+                "date": now_ts,
+                "period": period_block,
+                "group": [group],
+                "contained": [group_resource],
+            }
+
+        elif rt == "subject-list":
+            # DEQM Subject List MeasureReport: group with population + subjectResults
+            # pointing at contained individual reports.
+            indiv_id = f"indiv-{report_id}"
+            indiv_report: Dict[str, Any] = {
+                "resourceType": "MeasureReport",
+                "id": indiv_id,
+                "status": "complete",
+                "type": "individual",
+                "measure": measure_canonical,
+                "subject": {"reference": f"Patient/{subject_id}"},
+                "reporter": reporter,
+                "date": now_ts,
+                "period": period_block,
+                "group": [{"population": populations}] if populations else [],
+            }
+            group_resource = {
+                "resourceType": "Group",
+                "id": f"group-{subject_id}",
+                "type": "person",
+                "actual": True,
+                "quantity": 1,
+                "member": [{"entity": {"reference": f"Patient/{subject_id}"}}],
+            }
+            # Build population entries with subjectResults referencing the individual report.
+            sl_populations: List[Dict[str, Any]] = []
+            for pop in populations:
+                sl_pop = dict(pop)
+                sl_pop["subjectResults"] = {"reference": f"#{indiv_id}"}
+                sl_populations.append(sl_pop)
+
+            report = {
+                "resourceType": "MeasureReport",
+                "id": report_id,
+                "status": "complete",
+                "type": "subject-list",
+                "measure": measure_canonical,
+                "subject": {"reference": f"#group-{subject_id}"},
+                "reporter": reporter,
+                "date": now_ts,
+                "period": period_block,
+                "group": [{"population": sl_populations}] if sl_populations else [],
+                "contained": [group_resource, indiv_report],
+            }
+
+        else:
+            # "individual" (default) — existing shape + reporter.
+            engine_ext: List[Dict[str, Any]] = [
                 {
                     "url": f"{base}/StructureDefinition/engine-result",
                     "valueString": "native" if engines["useNative"] else "ai",
@@ -618,42 +734,48 @@ def create_deqm_router(
                     "url": f"{base}/StructureDefinition/evaluation-note",
                     "valueString": evaluation_note,
                 },
-            ],
-        }
-        if evidence_trace:
-            report["extension"].append(
-                {
+            ]
+            if evidence_trace:
+                engine_ext.append({
                     "url": f"{base}/StructureDefinition/evidence-trace",
                     "valueString": json.dumps(evidence_trace),
-                }
-            )
-        if gaps_in_care:
-            report["extension"].append(
-                {
+                })
+            if gaps_in_care:
+                engine_ext.append({
                     "url": f"{base}/StructureDefinition/gaps-in-care",
                     "valueString": json.dumps(gaps_in_care),
-                }
-            )
-        # Preserve the accelerator's explainability payload as a contained
-        # resource so callers retain the full evidence trace. Serialize as
-        # JSON (not Python repr) so clients can parse it.
-        try:
-            payload_str = json.dumps(engine_result, default=str)
-        except Exception:  # noqa: BLE001
-            payload_str = str(engine_result)
-        report["contained"] = [
-            {
-                "resourceType": "Basic",
-                "id": "engine-payload",
-                "code": {"text": "engine-result"},
-                "extension": [
+                })
+            try:
+                payload_str = json.dumps(engine_result, default=str)
+            except Exception:  # noqa: BLE001
+                payload_str = str(engine_result)
+
+            report = {
+                "resourceType": "MeasureReport",
+                "id": report_id,
+                "status": "complete",
+                "type": "individual",
+                "measure": measure_canonical,
+                "subject": {"reference": f"Patient/{subject_id}"},
+                "reporter": reporter,
+                "date": now_ts,
+                "period": period_block,
+                "group": [{"population": populations}] if populations else [],
+                "extension": engine_ext,
+                "contained": [
                     {
-                        "url": f"{base}/StructureDefinition/engine-payload",
-                        "valueString": payload_str[:32000],
+                        "resourceType": "Basic",
+                        "id": "engine-payload",
+                        "code": {"text": "engine-result"},
+                        "extension": [
+                            {
+                                "url": f"{base}/StructureDefinition/engine-payload",
+                                "valueString": payload_str[:32000],
+                            }
+                        ],
                     }
                 ],
             }
-        ]
 
         try:
             save_measure_report(str(subject_id), report_id, report)
@@ -676,7 +798,7 @@ def create_deqm_router(
             http_status=200,
             numerator=num,
             denominator=den,
-            note=evaluation_note,
+            note=evaluation_note if rt == "individual" else f"[{rt}] {evaluation_note}",
             report_id=report_id,
         )
 
@@ -690,9 +812,10 @@ def create_deqm_router(
         periodEnd: Optional[str] = Query(default=None),
         engine: Optional[str] = Query(default=None),
         cohortId: Optional[str] = Query(default=None),
+        reportType: Optional[str] = Query(default=None),
         _: Any = Depends(auth_dependency),
     ):
-        return await _evaluate(measure_id, subject, periodStart, periodEnd, None, engine, cohortId)
+        return await _evaluate(measure_id, subject, periodStart, periodEnd, None, engine, cohortId, reportType)
 
     @router.post("/Measure/{measure_id}/$evaluate-measure")
     async def evaluate_measure_post(
@@ -703,8 +826,9 @@ def create_deqm_router(
         periodEnd: Optional[str] = Query(default=None),
         engine: Optional[str] = Query(default=None),
         cohortId: Optional[str] = Query(default=None),
+        reportType: Optional[str] = Query(default=None),
         _: Any = Depends(auth_dependency),
     ):
-        return await _evaluate(measure_id, subject, periodStart, periodEnd, body, engine, cohortId)
+        return await _evaluate(measure_id, subject, periodStart, periodEnd, body, engine, cohortId, reportType)
 
     return router

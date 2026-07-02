@@ -1,0 +1,645 @@
+openapi: 3.0.3
+info:
+  title: Cross-Stack DEQM MeasureReport Exchange
+  version: 1.0.0
+  description: |
+    OpenAPI contract for the bidirectional DEQM MeasureReport exchange between
+    the **submitters** stack (producer) and the **receivers** stack (consumer).
+
+    ## Producer (submitters)
+
+    - `POST /api/workbench/cohorts/{cohortId}/measure-reports?reportType=...`
+      builds the cohort report in the chosen DEQM profile and dispatches it to the
+      receivers `/api/workbench/measure-reports` route.
+
+    - `POST /api/workbench/cohorts/{cohortId}/measure-summary/send` (legacy)
+      continues to dispatch the proprietary `measure_summary` rollup to
+      `/api/workbench/measure-summaries` for back-compat. **Deprecated.**
+
+    ## Consumer (receivers)
+
+    - `POST /api/workbench/measure-reports` — accepts a DEQM MeasureReport or a
+      Bundle of MeasureReports, validates DEQM mandatory elements (deqm-0, deqm-1),
+      and persists by `type` under the appropriate `docType`.
+
+    - `POST /api/workbench/measure-summaries` (legacy) — still accepts the
+      proprietary cohort rollup for one release. **Deprecated.**
+
+    ## reportType discriminator
+
+    The `reportType` field on the producer drives which FHIR payload is built:
+
+    | `reportType`   | FHIR `MeasureReport.type` | Cosmos `docType`              |
+    |----------------|---------------------------|-------------------------------|
+    | `individual`   | `individual`              | `measure_report`              |
+    | `subject-list` | `subject-list`            | `measure_report_subjectlist`  |
+    | `summary`      | `summary`                 | `measure_report_summary`      |
+
+    Default for cohort send: `summary`.
+
+    ## DEQM conformance rules enforced on ingest
+
+    - `deqm-0`: `measure` must include a version suffix, e.g. `.../Measure/CMS165v9|9.0.000`.
+    - `deqm-1`: `period.start` and `period.end` must have at least day precision (`YYYY-MM-DD`).
+    - `reporter` is required on every profile.
+    - Invalid payloads receive an `OperationOutcome` 400.
+servers:
+  - url: https://dq-frontend.eastus2.cloudapp.azure.com
+    description: Submitters AKS ingress (producer)
+  - url: https://dq-receivers-frontend.eastus2.cloudapp.azure.com
+    description: Receivers AKS ingress (consumer)
+security:
+  - bearerAuth: []
+paths:
+  # ---------------------------------------------------------------------------
+  # Producer: build and dispatch a typed MeasureReport
+  # ---------------------------------------------------------------------------
+  /api/workbench/cohorts/{cohortId}/measure-reports:
+    post:
+      summary: Build a DEQM MeasureReport from the cohort rollup and dispatch it
+      operationId: sendCohortMeasureReport
+      description: |
+        Aggregates measurement history for the cohort, builds the FHIR payload in
+        the requested profile, and POSTs it to the receivers
+        `/api/workbench/measure-reports` route.
+
+        Also dispatches the legacy proprietary summary to the platform stack via
+        `/api/workbench/measure-summaries` for back-compat.
+      tags:
+        - producer
+      parameters:
+        - name: cohortId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: cohort-diabetes
+        - name: reportType
+          in: query
+          description: DEQM profile to emit. Overrides the body field of the same name.
+          schema:
+            type: string
+            enum: [individual, subject-list, summary]
+            default: summary
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CohortMeasureReportRequest'
+            examples:
+              summaryRequest:
+                summary: Dispatch a summary report
+                value:
+                  agencyId: agency-cms
+                  programId: program-cms-mssp
+                  measureIds: [CMS165v9]
+                  periodStart: '2025-01-01'
+                  periodEnd: '2025-12-31'
+                  reportType: summary
+      responses:
+        '200':
+          description: Dispatch audit record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeasureReportSendResponse'
+        '400':
+          description: Invalid reportType or request body.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Cohort, agency, or program not found.
+        '409':
+          description: No measurement history available — run Evaluate first.
+
+  # ---------------------------------------------------------------------------
+  # Producer: legacy cohort send (deprecated)
+  # ---------------------------------------------------------------------------
+  /api/workbench/cohorts/{cohortId}/measure-summary/send:
+    post:
+      summary: (Deprecated) Send a proprietary cohort measure summary
+      operationId: sendCohortMeasureSummaryLegacy
+      deprecated: true
+      description: |
+        **Deprecated.** Use `POST /api/workbench/cohorts/{cohortId}/measure-reports` instead.
+
+        Dispatches the proprietary `measure_summary` rollup to the receivers and
+        platform `/api/workbench/measure-summaries` route. Kept for one release for
+        back-compat.
+      tags:
+        - producer
+        - deprecated
+      parameters:
+        - name: cohortId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CohortMeasureSummarySendRequest'
+      responses:
+        '200':
+          description: Legacy dispatch audit record.
+        '404':
+          description: Cohort or agency not found.
+        '409':
+          description: No measurement history available.
+
+  # ---------------------------------------------------------------------------
+  # Consumer: ingest typed DEQM MeasureReport(s)
+  # ---------------------------------------------------------------------------
+  /api/workbench/measure-reports:
+    post:
+      summary: Accept and persist a DEQM MeasureReport or Bundle
+      operationId: receiveMeasureReport
+      description: |
+        Accepts a single DEQM MeasureReport or a Bundle of MeasureReports.
+
+        - Validates DEQM mandatory elements (deqm-0, deqm-1) on each report.
+        - Persists each report using a `docType` derived from `MeasureReport.type`.
+        - Returns an `OperationOutcome` (400) for any conformance violation.
+      tags:
+        - consumer
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/SummaryMeasureReport'
+                - $ref: '#/components/schemas/SubjectListMeasureReport'
+                - $ref: '#/components/schemas/IndividualMeasureReport'
+                - $ref: '#/components/schemas/MeasureReportBundle'
+              discriminator:
+                propertyName: resourceType
+            examples:
+              summaryIngest:
+                summary: Ingest a Summary MeasureReport
+                value:
+                  resourceType: MeasureReport
+                  id: report-sum-001
+                  status: complete
+                  type: summary
+                  measure: 'https://example.org/Measure/CMS165v9|9.0.000'
+                  reporter:
+                    reference: Organization/submitters-org
+                  date: '2025-12-31T23:59:59Z'
+                  period:
+                    start: '2025-01-01'
+                    end: '2025-12-31'
+                  group:
+                    - population:
+                        - code:
+                            coding:
+                              - system: 'http://terminology.hl7.org/CodeSystem/measure-population'
+                                code: denominator
+                          count: 8
+                        - code:
+                            coding:
+                              - system: 'http://terminology.hl7.org/CodeSystem/measure-population'
+                                code: numerator
+                          count: 6
+                      measureScore:
+                        value: 0.75
+      responses:
+        '200':
+          description: Report(s) accepted and persisted.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/SingleReportResponse'
+                  - $ref: '#/components/schemas/BundleIngestResponse'
+        '400':
+          description: DEQM conformance violation or unsupported resourceType.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: '#/components/schemas/OperationOutcome'
+        '401':
+          description: Authentication required.
+        '500':
+          description: Persistence failure.
+    get:
+      summary: List persisted DEQM MeasureReports
+      operationId: listMeasureReports
+      tags:
+        - consumer
+      parameters:
+        - name: reportType
+          in: query
+          description: Filter by DEQM profile type.
+          schema:
+            type: string
+            enum: [individual, subject-list, summary]
+      responses:
+        '200':
+          description: List of persisted MeasureReport index documents.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeasureReportListResponse'
+  /api/workbench/measure-reports/{reportId}:
+    get:
+      summary: Retrieve a single persisted DEQM MeasureReport
+      operationId: getMeasureReport
+      tags:
+        - consumer
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: MeasureReport index document (includes raw FHIR resource under `resource` key).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SingleReportResponse'
+        '404':
+          description: MeasureReport not found.
+
+  # ---------------------------------------------------------------------------
+  # Consumer: legacy ingest (deprecated)
+  # ---------------------------------------------------------------------------
+  /api/workbench/measure-summaries:
+    post:
+      summary: (Deprecated) Accept a proprietary cohort measure summary
+      operationId: receiveMeasureSummaryLegacy
+      deprecated: true
+      description: |
+        **Deprecated.** Use `POST /api/workbench/measure-reports` instead.
+
+        Accepts the proprietary `measure_summary` rollup from submitters and persists
+        it as `docType=measure_summary`. Kept for one release for back-compat.
+      tags:
+        - consumer
+        - deprecated
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeasureSummaryPayload'
+      responses:
+        '200':
+          description: Summary accepted and persisted.
+        '400':
+          description: Request body failed validation.
+        '500':
+          description: Persistence failure.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    FHIRReference:
+      type: object
+      properties:
+        reference:
+          type: string
+        display:
+          type: string
+    MeasurePopulationBase:
+      type: object
+      required: [code, count]
+      properties:
+        code:
+          type: object
+          properties:
+            coding:
+              type: array
+              items:
+                type: object
+                properties:
+                  system:
+                    type: string
+                  code:
+                    type: string
+                    enum: [initial-population, denominator, numerator, denominator-exclusion]
+        count:
+          type: integer
+          minimum: 0
+    IndividualMeasureReport:
+      type: object
+      required: [resourceType, status, type, measure, reporter, date, period]
+      properties:
+        resourceType:
+          type: string
+          enum: [MeasureReport]
+        id:
+          type: string
+        status:
+          type: string
+          enum: [complete, pending, error]
+        type:
+          type: string
+          enum: [individual]
+        measure:
+          type: string
+          description: 'Canonical URL including version, e.g. .../Measure/CMS165v9|9.0.000'
+        subject:
+          $ref: '#/components/schemas/FHIRReference'
+        reporter:
+          $ref: '#/components/schemas/FHIRReference'
+        date:
+          type: string
+          format: date-time
+        period:
+          type: object
+          required: [start, end]
+          properties:
+            start:
+              type: string
+              format: date
+            end:
+              type: string
+              format: date
+        group:
+          type: array
+          items:
+            type: object
+            properties:
+              population:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MeasurePopulationBase'
+    SubjectListMeasureReport:
+      allOf:
+        - $ref: '#/components/schemas/IndividualMeasureReport'
+        - type: object
+          required: [group]
+          properties:
+            type:
+              type: string
+              enum: [subject-list]
+            group:
+              type: array
+              minItems: 1
+              items:
+                type: object
+                properties:
+                  population:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/MeasurePopulationBase'
+                        - type: object
+                          properties:
+                            subjectResults:
+                              $ref: '#/components/schemas/FHIRReference'
+            contained:
+              type: array
+              items:
+                type: object
+    SummaryMeasureReport:
+      allOf:
+        - $ref: '#/components/schemas/IndividualMeasureReport'
+        - type: object
+          required: [group]
+          properties:
+            type:
+              type: string
+              enum: [summary]
+            group:
+              type: array
+              minItems: 1
+              items:
+                type: object
+                properties:
+                  population:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MeasurePopulationBase'
+                  measureScore:
+                    type: object
+                    properties:
+                      value:
+                        type: number
+                        format: double
+    MeasureReportBundle:
+      type: object
+      required: [resourceType, type, entry]
+      properties:
+        resourceType:
+          type: string
+          enum: [Bundle]
+        id:
+          type: string
+        type:
+          type: string
+          enum: [collection, transaction, batch]
+        entry:
+          type: array
+          items:
+            type: object
+            properties:
+              resource:
+                oneOf:
+                  - $ref: '#/components/schemas/IndividualMeasureReport'
+                  - $ref: '#/components/schemas/SubjectListMeasureReport'
+                  - $ref: '#/components/schemas/SummaryMeasureReport'
+    PersistedMeasureReport:
+      type: object
+      required: [id, docType, reportType, receivedAt]
+      properties:
+        id:
+          type: string
+        docType:
+          type: string
+          enum: [measure_report, measure_report_subjectlist, measure_report_summary]
+        reportType:
+          type: string
+          enum: [individual, subject-list, summary]
+        measureIds:
+          type: array
+          items:
+            type: string
+        periodStart:
+          type: string
+          format: date
+          nullable: true
+        periodEnd:
+          type: string
+          format: date
+          nullable: true
+        receivedAt:
+          type: integer
+          format: int64
+          description: Epoch milliseconds
+        resource:
+          description: Raw FHIR MeasureReport
+          type: object
+    SingleReportResponse:
+      type: object
+      properties:
+        report:
+          $ref: '#/components/schemas/PersistedMeasureReport'
+    BundleIngestResponse:
+      type: object
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersistedMeasureReport'
+        count:
+          type: integer
+    MeasureReportListResponse:
+      type: object
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersistedMeasureReport'
+        count:
+          type: integer
+    MeasureReportSendResponse:
+      type: object
+      properties:
+        send:
+          type: object
+          properties:
+            id:
+              type: string
+            cohortId:
+              type: string
+            reportType:
+              type: string
+              enum: [individual, subject-list, summary]
+            measureIds:
+              type: array
+              items:
+                type: string
+            status:
+              type: string
+              enum: [sent, partial, failed, skipped]
+            dispatch:
+              type: object
+        reportType:
+          type: string
+    CohortMeasureReportRequest:
+      type: object
+      required: [agencyId]
+      properties:
+        agencyId:
+          type: string
+        programId:
+          type: string
+          nullable: true
+        measureIds:
+          type: array
+          items:
+            type: string
+        periodStart:
+          type: string
+          format: date
+          nullable: true
+        periodEnd:
+          type: string
+          format: date
+          nullable: true
+        reportType:
+          type: string
+          enum: [individual, subject-list, summary]
+          nullable: true
+          description: Overridden by the `reportType` query parameter when both are present.
+        note:
+          type: string
+          default: ''
+        engine:
+          type: string
+          nullable: true
+          enum: [native-cql, ai-cql]
+        sourceSubmissionId:
+          type: string
+          nullable: true
+    CohortMeasureSummarySendRequest:
+      type: object
+      description: Legacy proprietary rollup request (deprecated).
+      required: [agencyId]
+      properties:
+        agencyId:
+          type: string
+        programId:
+          type: string
+          nullable: true
+        measureIds:
+          type: array
+          items:
+            type: string
+        periodStart:
+          type: string
+          format: date
+          nullable: true
+        periodEnd:
+          type: string
+          format: date
+          nullable: true
+        note:
+          type: string
+          default: ''
+    MeasureSummaryPayload:
+      type: object
+      description: Legacy proprietary cohort rollup payload (deprecated).
+      required: [agency, cohort]
+      properties:
+        id:
+          type: string
+          nullable: true
+        sourceStack:
+          type: string
+          default: submitters
+        agency:
+          type: object
+          required: [id]
+          properties:
+            id:
+              type: string
+        cohort:
+          type: object
+          required: [id]
+          properties:
+            id:
+              type: string
+        measureIds:
+          type: array
+          items:
+            type: string
+    OperationOutcome:
+      type: object
+      required: [resourceType, issue]
+      properties:
+        resourceType:
+          type: string
+          enum: [OperationOutcome]
+        issue:
+          type: array
+          items:
+            type: object
+            required: [severity, code]
+            properties:
+              severity:
+                type: string
+                enum: [fatal, error, warning, information]
+              code:
+                type: string
+              diagnostics:
+                type: string
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          oneOf:
+            - type: string
+            - type: object

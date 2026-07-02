@@ -310,11 +310,19 @@ def _now_ms() -> int:
 
 
 def _extract_measure_id(canonical: str) -> str:
-    """Extract the measure id from a canonical URL like ``.../Measure/CMS165v9|9.0.000``."""
+    """Extract the measure id from a canonical URL like ``.../Measure/CMS165v9|9.0.000``.
+
+    Returns an empty string for empty/malformed input rather than raising.
+    """
+    if not canonical:
+        return ""
     # Strip version suffix
-    canonical = canonical.split("|")[0]
+    canonical = canonical.split("|")[0].rstrip("/")
+    if not canonical:
+        return ""
     # Return the last path segment
-    return canonical.rstrip("/").rsplit("/", 1)[-1]
+    parts = canonical.rsplit("/", 1)
+    return parts[-1] if parts[-1] else ""
 
 
 def _builtin_measure_meta(measure_id: str, entry: Dict[str, Any]) -> Dict[str, Any]:
@@ -1048,7 +1056,7 @@ def create_workbench_router(
 
     @router.get("/measure-reports")
     async def list_measure_reports(
-        reportType: str = None,  # type: ignore[assignment]
+        reportType: Optional[str] = None,
         _user: Dict[str, Any] = Depends(auth_dependency),
     ):
         """List persisted DEQM MeasureReports.  Pass ``reportType`` to filter by profile."""

@@ -400,6 +400,11 @@ class TestBuildDeqmFhirPayloadSubjectList:
                 assert "subjectResults" in pop, (
                     "subject-list populations must include subjectResults"
                 )
+                # subjectResults should be a reference to a contained List resource
+                ref = pop["subjectResults"].get("reference", "")
+                assert ref.startswith("#list-"), (
+                    f"subjectResults should reference a contained List (got {ref!r})"
+                )
 
     def test_contained_has_group_and_individual_reports(self):
         result = _build_deqm_fhir_payload(self.rollup, "subject-list")
@@ -407,6 +412,8 @@ class TestBuildDeqmFhirPayloadSubjectList:
         resource_types = {r.get("resourceType") for r in contained}
         assert "Group" in resource_types
         assert "MeasureReport" in resource_types
+        # Must also include the List resource that subjectResults points at
+        assert "List" in resource_types, "contained must include a List resource for subjectResults"
 
     def test_contained_individual_reports_are_type_individual(self):
         result = _build_deqm_fhir_payload(self.rollup, "subject-list")

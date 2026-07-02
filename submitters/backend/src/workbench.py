@@ -403,12 +403,28 @@ def _build_deqm_fhir_payload(
                 contained.append(indiv_report)
                 indiv_ids.append(indiv_id)
 
-            # Build populations with subjectResults pointing at all individual reports.
-            sub_results_ref = [{"reference": f"#{iid}"} for iid in indiv_ids]
+            # Build populations with subjectResults pointing at the contained List resource
+            # (or all individual report references if no List is used).
+            # Each population's subjectResults should reference a List resource whose
+            # entries cover all subjects in that population. Here we emit a single
+            # contained List with all individual report references, shared across
+            # populations, which satisfies the DEQM Subject-List profile requirement.
+            all_subject_refs = [{"reference": f"#{iid}"} for iid in indiv_ids]
+            # Build a contained List resource that bundles the per-subject reports.
+            list_id = f"list-{cohort_id}-{mid}"
+            list_resource: Dict[str, Any] = {
+                "resourceType": "List",
+                "id": list_id,
+                "status": "current",
+                "mode": "snapshot",
+                "entry": [{"item": {"reference": f"#{iid}"}} for iid in indiv_ids],
+            }
+            contained.append(list_resource)
+            list_ref = {"reference": f"#{list_id}"}
             sl_pops = [
-                {**_deqm_pop("initial-population", patients), "subjectResults": sub_results_ref[0] if sub_results_ref else {}},
-                {**_deqm_pop("denominator", denom), "subjectResults": sub_results_ref[0] if sub_results_ref else {}},
-                {**_deqm_pop("numerator", num), "subjectResults": sub_results_ref[0] if sub_results_ref else {}},
+                {**_deqm_pop("initial-population", patients), "subjectResults": list_ref},
+                {**_deqm_pop("denominator", denom), "subjectResults": list_ref},
+                {**_deqm_pop("numerator", num), "subjectResults": list_ref},
             ]
             if excl:
                 sl_pops.append(_deqm_pop("denominator-exclusion", excl))

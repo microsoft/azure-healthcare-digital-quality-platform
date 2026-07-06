@@ -9,7 +9,9 @@ import {
   WorkbenchSubmission,
   WorkbenchTag,
   MeasureSummary,
+  DeqmMeasureReportDoc,
   deleteWorkbenchCohort,
+  listMeasureReports,
   listMeasureSummaries,
   listWorkbenchAgencies,
   listWorkbenchCohorts,
@@ -38,6 +40,41 @@ const PANEL_LABELS: Array<{ id: CohortPanel; label: string; help: string }> = [
 function ensureArray<T>(v: T[] | undefined | null): T[] {
   return Array.isArray(v) ? v : [];
 }
+
+// Extract measure-population counts from a FHIR MeasureReport resource.
+function reportPopulationCounts(resource: DeqmMeasureReportDoc["resource"]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const g of ensureArray(resource?.group)) {
+    for (const p of ensureArray(g?.population)) {
+      const code = p?.code?.coding?.[0]?.code;
+      if (code) counts[code] = typeof p.count === "number" ? p.count : 0;
+    }
+  }
+  return counts;
+}
+
+// "https://.../Measure/CMS122v11|11.0.0" -> "CMS122v11 (v11.0.0)"
+function measureLabelFromCanonical(measure?: string): string {
+  if (!measure) return "—";
+  const [canonical, version] = measure.split("|");
+  const id = canonical.split("/").pop() || canonical;
+  return version ? `${id} (v${version})` : id;
+}
+
+// A DEQM report belongs to a cohort when its subject references the cohort's
+// Group (summary / subject-list) or one of the cohort members (individual).
+function reportBelongsToCohort(doc: DeqmMeasureReportDoc, cohort: WorkbenchCohort): boolean {
+  const ref = doc.resource?.subject?.reference || "";
+  if (ref.includes(cohort.id)) return true;
+  const memberIds = ensureArray(cohort.memberIds);
+  return memberIds.some((m) => ref.endsWith(`/${m}`) || ref === m);
+}
+
+const REPORT_TYPE_BADGE: Record<string, string> = {
+  summary: "bg-purple-100 text-purple-800 border-purple-200",
+  "subject-list": "bg-amber-100 text-amber-800 border-amber-200",
+  individual: "bg-sky-100 text-sky-800 border-sky-200",
+};
 
 // CMS quality measures report retrospectively (e.g., 2025 results are
 // reported in 2026), so the most common evaluation period is the previous
@@ -299,6 +336,11 @@ const CohortsPage: React.FC = () => {
   const [summariesLoading, setSummariesLoading] = useState(false);
   const [summariesError, setSummariesError] = useState<string | null>(null);
 
+  // DEQM MeasureReports (FHIR) received from submitters
+  const [reports, setReports] = useState<DeqmMeasureReportDoc[]>([]);
+  const [reportsError, setReportsError] = useState<string | null>(null);
+  const [reportTypeFilter, setReportTypeFilter] = useState<"all" | "summary" | "subject-list" | "individual">("all");
+
   const loadSummaries = useCallback(async () => {
     setSummariesLoading(true);
     setSummariesError(null);
@@ -313,9 +355,21 @@ const CohortsPage: React.FC = () => {
     }
   }, []);
 
+  const loadReports = useCallback(async () => {
+    setReportsError(null);
+    try {
+      const rows = await listMeasureReports();
+      setReports(rows);
+    } catch (e) {
+      setReportsError(e instanceof Error ? e.message : "Failed to load DEQM reports.");
+      setReports([]);
+    }
+  }, []);
+
   useEffect(() => {
     loadSummaries();
-  }, [loadSummaries]);
+    loadReports();
+  }, [loadSummaries, loadReports]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -1001,7 +1055,10 @@ const CohortsPage: React.FC = () => {
                     </div>
                     <button
                       type="button"
-                      onClick={() => loadSummaries()}
+                      onClick={() => {
+                        loadSummaries();
+                        loadReports();
+                      }}
                       disabled={summariesLoading}
                       className="px-2 py-1 text-xs rounded border border-gray-300 hover:border-gray-500 disabled:opacity-50"
                     >
@@ -1091,6 +1148,103 @@ const CohortsPage: React.FC = () => {
                       </ul>
                     );
                   })()}
+
+                  {/* ----- DEQM FHIR MeasureReports received (individual / subject-list / summary) ----- */}
+                  <div className="mt-4 pt-3 border-t border-gray-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-700">DEQM MeasureReports</h5>
+                        <p className="text-xs text-gray-500">
+                          Standards-conformant FHIR <code>MeasureReport</code> resources received
+                          via <code>/measure-reports</code>, by profile.
+                        </p>
+                      </div>
+                      <select
+                        value={reportTypeFilter}
+                        onChange={(e) => setReportTypeFilter(e.target.value as typeof reportTypeFilter)}
+                        className="px-2 py-1 text-xs border border-gray-300 rounded"
+                      >
+                        <option value="all">All types</option>
+                        <option value="summary">Summary</option>
+                        <option value="subject-list">Subject list</option>
+                        <option value="individual">Individual</option>
+                      </select>
+                    </div>
+
+                    {reportsError && (
+                      <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">
+                        {reportsError}
+                      </div>
+                    )}
+
+                    {(() => {
+                      const cohortReports = reports
+                        .filter((r) => reportBelongsToCohort(r, cohort))
+                        .filter((r) => reportTypeFilter === "all" || r.reportType === reportTypeFilter)
+                        .sort((a, b) => (b.receivedAt || 0) - (a.receivedAt || 0));
+                      if (!cohortReports.length) {
+                        return (
+                          <p className="text-xs text-gray-500">
+                            No DEQM MeasureReports received for this cohort yet.
+                          </p>
+                        );
+                      }
+                      return (
+                        <ul className="divide-y divide-gray-100">
+                          {cohortReports.map((r) => {
+                            const counts = reportPopulationCounts(r.resource);
+                            const when = r.receivedAt ? new Date(r.receivedAt).toLocaleString() : "";
+                            const badge =
+                              REPORT_TYPE_BADGE[r.reportType] || "bg-gray-100 text-gray-700 border-gray-200";
+                            const subjectRef = r.resource?.subject?.reference || "";
+                            return (
+                              <li key={r.id} className="py-2 space-y-1">
+                                <div className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                                  <span
+                                    className={`text-[11px] px-1.5 py-0.5 rounded border font-medium ${badge}`}
+                                  >
+                                    {r.reportType}
+                                  </span>
+                                  <span className="font-mono text-gray-800">
+                                    {measureLabelFromCanonical(r.resource?.measure) ||
+                                      (r.measureIds || []).join(", ")}
+                                  </span>
+                                  <span className="text-xs text-gray-500">· {when}</span>
+                                </div>
+                                <div className="text-[11px] text-gray-500">
+                                  {subjectRef ? `subject: ${subjectRef}` : ""}
+                                  {r.periodStart || r.periodEnd
+                                    ? ` · ${r.periodStart || "?"} – ${r.periodEnd || "?"}`
+                                    : ""}
+                                  {r.resource?.reporter?.display
+                                    ? ` · reporter: ${r.resource.reporter.display}`
+                                    : ""}
+                                </div>
+                                <div className="flex gap-3 text-xs text-gray-700">
+                                  <span>
+                                    Numerator:{" "}
+                                    <strong>{counts["numerator"] ?? 0}</strong>
+                                  </span>
+                                  <span>
+                                    Denominator:{" "}
+                                    <strong>{counts["denominator"] ?? 0}</strong>
+                                  </span>
+                                  <span>
+                                    Exclusions:{" "}
+                                    <strong>
+                                      {counts["denominator-exclusion"] ?? counts["exclusion"] ?? 0}
+                                    </strong>
+                                  </span>
+                                  <span className="text-gray-400">·</span>
+                                  <span className="font-mono text-gray-500">{r.id.slice(0, 8)}</span>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      );
+                    })()}
+                  </div>
                 </div>
               )}
 

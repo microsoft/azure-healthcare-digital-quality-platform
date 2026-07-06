@@ -140,6 +140,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.venv-orch
 env/
 venv/
 ENV/

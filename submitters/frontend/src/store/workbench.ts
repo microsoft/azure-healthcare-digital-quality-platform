@@ -465,6 +465,7 @@ export interface MeasureSummarySend {
     platform: MeasureSummaryDispatchTarget;
   };
   summary?: MeasureSummaryPayload;
+  reportType?: string;
 }
 
 export async function sendCohortMeasureSummary(
@@ -503,4 +504,44 @@ export async function getMeasureSummarySend(
     `/measure-summary/sends/${encodeURIComponent(sendId)}`,
   );
   return data.send;
+}
+
+// ---------------------------------------------------------------------------
+// DEQM MeasureReport send (submitters -> receivers) with reportType switching.
+// Unlike the legacy proprietary summary send above, this builds a
+// standards-conformant FHIR MeasureReport whose `type` is driven by
+// `reportType` (individual | subject-list | summary) and dispatches it to the
+// receivers' /measure-reports ingest route.
+// ---------------------------------------------------------------------------
+
+export type DeqmReportType = "individual" | "subject-list" | "summary";
+
+export async function sendCohortMeasureReport(
+  cohortId: string,
+  reportType: DeqmReportType,
+  body: {
+    agencyId: string;
+    programId?: string;
+    measureIds?: string[];
+    periodStart?: string;
+    periodEnd?: string;
+    note?: string;
+    engine?: string;
+    sourceSubmissionId?: string;
+  },
+): Promise<MeasureSummarySend> {
+  const data = await api<{ send: MeasureSummarySend; reportType: string }>(
+    `/cohorts/${encodeURIComponent(cohortId)}/measure-reports?reportType=${encodeURIComponent(reportType)}`,
+    { method: "POST", body: JSON.stringify({ ...body, reportType }) },
+  );
+  return data.send;
+}
+
+export async function listCohortMeasureReportSends(
+  cohortId: string,
+): Promise<MeasureSummarySend[]> {
+  const data = await api<{ sends: MeasureSummarySend[] }>(
+    `/cohorts/${encodeURIComponent(cohortId)}/measure-reports/sends`,
+  );
+  return data.sends || [];
 }

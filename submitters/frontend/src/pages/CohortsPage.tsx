@@ -11,9 +11,10 @@ import {
   WorkbenchSubmissionMeasurement,
   WorkbenchTag,
   MeasureSummarySend,
+  DeqmReportType,
   deleteWorkbenchCohort,
   getWorkbenchSubmission,
-  listCohortMeasureSummarySends,
+  listCohortMeasureReportSends,
   listCohortMeasurementHistory,
   listWorkbenchAgencies,
   listWorkbenchCohorts,
@@ -22,6 +23,7 @@ import {
   listWorkbenchSubmissions,
   listWorkbenchTags,
   readableTextOn,
+  sendCohortMeasureReport,
   sendCohortMeasureSummary,
   submitWorkbenchData,
   updateCohortMembers,
@@ -303,6 +305,7 @@ const CohortsPage: React.FC = () => {
   const [submitAgencyId, setSubmitAgencyId] = useState<string>("");
   const [submitProgramId, setSubmitProgramId] = useState<string>("");
   const [submitNote, setSubmitNote] = useState<string>("");
+  const [submitReportType, setSubmitReportType] = useState<DeqmReportType>("summary");
   const [submitStatus, setSubmitStatus] = useState<string | null>(null);
 
   // measure-summary send (submitters -> receivers + platform)
@@ -566,7 +569,7 @@ const CohortsPage: React.FC = () => {
 
   const loadSummarySends = useCallback(async (cohortId: string) => {
     try {
-      const rows = await listCohortMeasureSummarySends(cohortId);
+      const rows = await listCohortMeasureReportSends(cohortId);
       setSummarySends(rows);
     } catch (e) {
       // non-fatal; user can still send.
@@ -663,7 +666,7 @@ const CohortsPage: React.FC = () => {
       const refreshed = await listWorkbenchSubmissions();
       setSubmissions(refreshed);
       try {
-        const send = await sendCohortMeasureSummary(cohort.id, {
+        const send = await sendCohortMeasureReport(cohort.id, submitReportType, {
           agencyId: submitAgencyId,
           programId: submitProgramId || undefined,
           measureIds: submitMeasureIds,
@@ -1495,6 +1498,19 @@ const CohortsPage: React.FC = () => {
                         </label>
                       );
                     })()}
+
+                    <label className="text-xs text-gray-700">
+                      Report type
+                      <select
+                        value={submitReportType}
+                        onChange={(e) => setSubmitReportType(e.target.value as DeqmReportType)}
+                        className="block mt-1 px-2 py-1 text-sm border border-gray-300 rounded min-w-[12rem]"
+                      >
+                        <option value="summary">Summary (population roll-up)</option>
+                        <option value="subject-list">Subject list (per-member refs)</option>
+                        <option value="individual">Individual (one per member)</option>
+                      </select>
+                    </label>
 
                     <label className="text-xs text-gray-700 flex-1 min-w-[16rem]">
                       Note

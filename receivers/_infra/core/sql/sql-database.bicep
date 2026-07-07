@@ -13,7 +13,8 @@ param tags object = {}
 param administratorLogin string
 
 @secure()
-@description('SQL administrator password used for break-glass provisioning. Runtime services use managed identity.')
+@minLength(16)
+@description('SQL administrator password used for break-glass provisioning. Runtime services use managed identity. Provide via AZURE_SQL_ADMINISTRATOR_PASSWORD or a Key Vault-backed azd environment value.')
 param administratorPassword string
 
 @description('Public network access for the logical server. Disable when private endpoint networking is enabled.')

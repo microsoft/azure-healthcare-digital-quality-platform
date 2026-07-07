@@ -88,7 +88,8 @@ param sqlServerName string = ''
 param sqlDatabaseName string = 'dq_receiver_reporting'
 param sqlAdministratorLogin string = 'sqladminuser'
 @secure()
-param sqlAdministratorPassword string = newGuid()
+@minLength(16)
+param sqlAdministratorPassword string
 param sqlDatabaseSkuName string = 'Basic'
 param sqlDatabaseSkuTier string = 'Basic'
 param sqlEntraAdminObjectId string = ''

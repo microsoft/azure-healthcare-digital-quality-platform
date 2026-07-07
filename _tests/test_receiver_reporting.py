@@ -80,3 +80,19 @@ def test_submission_parameters_extract_submitter(monkeypatch):
     assert "ACO-101" in merged_params
     assert "Woodgrove ACO" in merged_params
     assert "accepted" in merged_params
+
+
+def test_from_environment_builds_managed_identity_connection_string(monkeypatch):
+    monkeypatch.setenv("RECEIVER_REPORTING_SQL_ENABLED", "true")
+    monkeypatch.delenv("AZURE_SQL_CONNECTION_STRING", raising=False)
+    monkeypatch.setenv("AZURE_SQL_SERVER_NAME", "sql-test")
+    monkeypatch.setenv("AZURE_SQL_DATABASE_NAME", "dq_receiver_reporting")
+    monkeypatch.setenv("AZURE_CLIENT_ID", "11111111-1111-1111-1111-111111111111")
+
+    sink = ReceiverReportingSink.from_environment()
+
+    assert sink.enabled is True
+    assert "Server=tcp:sql-test.database.windows.net,1433" in sink.connection_string
+    assert "Database=dq_receiver_reporting" in sink.connection_string
+    assert "Authentication=ActiveDirectoryMsi" in sink.connection_string
+    assert "UID=11111111-1111-1111-1111-111111111111" in sink.connection_string

@@ -40,6 +40,7 @@ class ReceiverReportingSink:
             client_id = os.getenv("AZURE_CLIENT_ID", "").strip()
             if server and "." not in server:
                 server = f"{server}.database.windows.net"
+                logger.info("Constructed Azure SQL FQDN from AZURE_SQL_SERVER_NAME: %s", server)
             if server and database:
                 uid = f"UID={client_id};" if client_id else ""
                 connection_string = (
@@ -59,10 +60,15 @@ class ReceiverReportingSink:
         if not self.enabled:
             return False
         try:
-            with self._connect() as conn:
+            import pyodbc  # type: ignore[import-not-found]
+        except ImportError as exc:
+            logger.warning("Receiver reporting SQL persistence disabled; pyodbc is unavailable: %s", exc)
+            return False
+        try:
+            with pyodbc.connect(self.connection_string, autocommit=True, timeout=5) as conn:
                 conn.cursor().execute(sql, params)
             return True
-        except Exception as exc:  # noqa: BLE001
+        except pyodbc.Error as exc:
             logger.warning("Receiver reporting SQL persistence failed: %s", exc)
             return False
 
@@ -134,7 +140,11 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
         populations = _extract_populations(report)
         denominator = populations.get("denominator")
         numerator = populations.get("numerator")
-        performance_rate = round(numerator / denominator, 4) if numerator is not None and denominator else None
+        performance_rate = (
+            round(numerator / denominator, 4)
+            if numerator is not None and denominator is not None and denominator > 0
+            else None
+        )
         program_id = os.getenv("RECEIVER_DEFAULT_PROGRAM_ID", "default-program")
         period = report.get("period") if isinstance(report.get("period"), dict) else {}
         received_at = _parse_datetime(record.get("receivedAtUtc") or report.get("date"))

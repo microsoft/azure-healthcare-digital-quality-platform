@@ -82,6 +82,9 @@
     },
     "sqlAzureAdOnlyAuthentication": {
       "value": "${AZURE_SQL_AAD_ONLY_AUTH=false}"
+    },
+    "sqlAdministratorPassword": {
+      "value": "${AZURE_SQL_ADMINISTRATOR_PASSWORD}"
     }
   }
 }

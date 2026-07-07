@@ -87,7 +87,7 @@ CREATE TABLE dq.ProcessingEvents (
     ProcessingEventId   BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_ProcessingEvents PRIMARY KEY,
     CorrelationId       NVARCHAR(100) NULL,
     EventType           NVARCHAR(100) NOT NULL,
-    MeasureId           NVARCHAR(100) NULL,
+    MeasureId           NVARCHAR(400) NULL,
     SubmitterId         NVARCHAR(100) NULL,
     ProgramId           NVARCHAR(100) NULL,
     Status              NVARCHAR(50) NOT NULL,

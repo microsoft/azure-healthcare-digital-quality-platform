@@ -11,6 +11,8 @@ import {
   MeasureSummary,
   DeqmMeasureReportDoc,
   deleteWorkbenchCohort,
+  exportCohortGroup,
+  importCohortGroup,
   listMeasureReports,
   listMeasureSummaries,
   listWorkbenchAgencies,
@@ -306,6 +308,13 @@ const CohortsPage: React.FC = () => {
   const [memberInput, setMemberInput] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // FHIR Group (Da Vinci ATR roster) import/export
+  const [importGroupOpen, setImportGroupOpen] = useState(false);
+  const [importGroupText, setImportGroupText] = useState("");
+  const [groupBusy, setGroupBusy] = useState(false);
+  const [groupError, setGroupError] = useState<string | null>(null);
+  const [groupNotice, setGroupNotice] = useState<string | null>(null);
+
   // cohort list filter (search + scope)
   const [cohortFilter, setCohortFilter] = useState("");
   const [cohortScope, setCohortScope] = useState<"all" | "builtin" | "custom">("all");
@@ -558,6 +567,70 @@ const CohortsPage: React.FC = () => {
     }
   };
 
+  // ---------------- FHIR Group export / import (Da Vinci ATR roster) ----------------
+
+  const onExportGroup = async () => {
+    if (!cohort) return;
+    setGroupBusy(true);
+    setGroupError(null);
+    setGroupNotice(null);
+    try {
+      const group = await exportCohortGroup(cohort.id);
+      const blob = new Blob([JSON.stringify(group, null, 2)], {
+        type: "application/fhir+json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${cohort.id}.group.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setGroupNotice(
+        `Exported ${cohort.id}.group.json (${ensureArray(cohort.memberIds).length} members).`,
+      );
+    } catch (e) {
+      setGroupError(e instanceof Error ? e.message : "Export failed.");
+    } finally {
+      setGroupBusy(false);
+    }
+  };
+
+  const onImportGroup = async () => {
+    setGroupBusy(true);
+    setGroupError(null);
+    setGroupNotice(null);
+    try {
+      const parsed = JSON.parse(importGroupText);
+      if (!parsed || parsed.resourceType !== "Group") {
+        throw new Error("JSON must be a FHIR Group resource (resourceType: 'Group').");
+      }
+      const res = await importCohortGroup(parsed);
+      const refreshed = await listWorkbenchCohorts();
+      setCohorts(refreshed);
+      setSelectedCohortId(res.cohort.id);
+      setImportGroupOpen(false);
+      setImportGroupText("");
+      setGroupNotice(
+        `Imported cohort '${res.cohort.name}' (${res.memberCount} members).`,
+      );
+    } catch (e) {
+      setGroupError(
+        e instanceof Error ? e.message : "Import failed. Paste a valid FHIR Group JSON.",
+      );
+    } finally {
+      setGroupBusy(false);
+    }
+  };
+
+  const onGroupFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setImportGroupText(String(reader.result || ""));
+    reader.readAsText(file);
+  };
   // ---------------- Members ----------------
 
   const onAddMembers = async () => {
@@ -828,7 +901,81 @@ const CohortsPage: React.FC = () => {
                           Delete
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={onExportGroup}
+                        disabled={groupBusy}
+                        title="Export this cohort roster as a Da Vinci ATR FHIR Group"
+                        className="px-2 py-1 text-xs rounded border border-gray-300 hover:border-gray-500 disabled:opacity-50"
+                      >
+                        Export Group
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImportGroupOpen((v) => !v);
+                          setGroupError(null);
+                          setGroupNotice(null);
+                        }}
+                        disabled={groupBusy}
+                        title="Create or update a cohort from a FHIR Group roster"
+                        className="px-2 py-1 text-xs rounded border border-gray-300 hover:border-gray-500 disabled:opacity-50"
+                      >
+                        Import Group
+                      </button>
                     </div>
+                    {groupError && (
+                      <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2 mt-2">
+                        {groupError}
+                      </div>
+                    )}
+                    {groupNotice && (
+                      <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded p-2 mt-2">
+                        {groupNotice}
+                      </div>
+                    )}
+                    {importGroupOpen && (
+                      <div className="mt-2 border border-gray-200 rounded p-2 space-y-2 bg-gray-50">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-xs font-medium text-gray-700">
+                            Import FHIR Group (Da Vinci ATR roster)
+                          </span>
+                          <input
+                            type="file"
+                            accept=".json,application/json,application/fhir+json"
+                            onChange={onGroupFile}
+                            className="text-xs"
+                          />
+                        </div>
+                        <textarea
+                          value={importGroupText}
+                          onChange={(e) => setImportGroupText(e.target.value)}
+                          placeholder={'{"resourceType":"Group", "member":[{"entity":{"reference":"Patient/P001"}}] }'}
+                          rows={6}
+                          className="w-full text-xs font-mono border border-gray-300 rounded p-2"
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setImportGroupOpen(false);
+                              setImportGroupText("");
+                            }}
+                            className="px-2 py-1 text-xs rounded border border-gray-300 hover:border-gray-500"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={onImportGroup}
+                            disabled={groupBusy || !importGroupText.trim()}
+                            className="px-3 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                          >
+                            {groupBusy ? "Importing\u2026" : "Import"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {cohort.description && (
                       <p className="text-sm text-gray-600 mt-1">{cohort.description}</p>
                     )}

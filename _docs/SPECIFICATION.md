@@ -207,6 +207,24 @@ population criterion.
 - APIM rate limits: 60 rpm per client for `$evaluate-measure`; 300 rpm
   otherwise; 30 rpm for `$submit-data` per submitter.
 
+#### 1.4.5) Cohort roster exchange (Da Vinci ATR FHIR Group)
+
+Quality-measurement **cohorts** are exchanged as standards-based FHIR **`Group`**
+resources aligned with the **Da Vinci Member Attribution List (ATR)** `atr-group`
+profile, rather than a proprietary cohort payload. The same `Group` is referenced
+as `MeasureReport.subject` by the `subject-list` and `summary` DEQM profiles.
+
+- `GET  /api/workbench/cohorts/{cohortId}/Group` — export a cohort as an
+  ATR-aligned `Group` (submitters **and** receivers).
+- `POST /api/workbench/cohorts/$import-group` — create/update a cohort from a
+  `Group` roster (inverse).
+
+Roster members are `Group.member[].entity` = `Reference(Patient/{id})`; in-scope
+measures are carried as `Group.characteristic[].valueReference` → `Measure`.
+See [`openapi/cohort-group-exchange.openapi.yaml`](openapi/cohort-group-exchange.openapi.yaml)
+for the contract and [`DEQM_DAVINCI_ATR_GAP_ANALYSIS.md`](DEQM_DAVINCI_ATR_GAP_ANALYSIS.md)
+for the capability-statement mapping and documented ATR conformance gaps.
+
 ### 1.5) CMS Quality Measure starting set (shared)
 
 | Category | Measure |

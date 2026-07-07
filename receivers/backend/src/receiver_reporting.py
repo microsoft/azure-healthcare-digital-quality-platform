@@ -35,12 +35,20 @@ class ReceiverReportingSink:
         enabled = os.getenv("RECEIVER_REPORTING_SQL_ENABLED", "false").lower() in ("true", "1", "yes", "on")
         connection_string = os.getenv("AZURE_SQL_CONNECTION_STRING", "").strip()
         if not connection_string:
-            server = os.getenv("AZURE_SQL_SERVER_FQDN", "").strip() or os.getenv("AZURE_SQL_SERVER_NAME", "").strip()
+            server_fqdn = os.getenv("AZURE_SQL_SERVER_FQDN", "").strip()
+            server_name = os.getenv("AZURE_SQL_SERVER_NAME", "").strip()
             database = os.getenv("AZURE_SQL_DATABASE_NAME", "").strip()
             client_id = os.getenv("AZURE_CLIENT_ID", "").strip()
-            if server and "." not in server:
-                server = f"{server}.database.windows.net"
-                logger.info("Constructed Azure SQL FQDN from AZURE_SQL_SERVER_NAME: %s", server)
+            if server_fqdn:
+                server = server_fqdn
+                if "." not in server:
+                    logger.warning("AZURE_SQL_SERVER_FQDN does not look fully qualified: %s", server)
+            elif server_name:
+                server = server_name if "." in server_name else f"{server_name}.database.windows.net"
+                if server != server_name:
+                    logger.info("Constructed Azure SQL FQDN from AZURE_SQL_SERVER_NAME: %s", server)
+            else:
+                server = ""
             if server and database:
                 uid = f"UID={client_id};" if client_id else ""
                 connection_string = (
@@ -56,6 +64,8 @@ class ReceiverReportingSink:
             return False
         try:
             import pyodbc  # type: ignore[import-not-found]
+            # pyodbc enables process-wide connection pooling by default, so each
+            # short-lived call can reuse an ODBC connection when the driver supports it.
         except ImportError as exc:
             logger.warning("Receiver reporting SQL persistence disabled; pyodbc is unavailable: %s", exc)
             return False
@@ -212,7 +222,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?);
         return self.persist_processing_event(
             correlation_id=patient_id,
             event_type="measure.evaluated",
-            measure_id=_bounded_text(",".join(str(m) for m in result.get("measureIds", []) if m) or result.get("measureId"), 400),
+            measure_id=",".join(str(m) for m in result.get("measureIds", []) if m) or result.get("measureId"),
             submitter_id=os.getenv("RECEIVER_DEFAULT_SUBMITTER_ID", "receiver-workbench"),
             program_id=os.getenv("RECEIVER_DEFAULT_PROGRAM_ID", "default-program"),
             status=str(result.get("status") or "completed"),
@@ -362,13 +372,3 @@ def _coerce_int(value: Any) -> Optional[int]:
 
 def _json_dumps(value: Any) -> str:
     return json.dumps(value, separators=(",", ":"), sort_keys=True, default=str)
-
-
-def _bounded_text(value: Any, max_length: int) -> Optional[str]:
-    if value is None:
-        return None
-    text = str(value)
-    if len(text) <= max_length:
-        return text
-    logger.warning("Truncating receiver reporting text value from %s to %s characters", len(text), max_length)
-    return text[:max_length]

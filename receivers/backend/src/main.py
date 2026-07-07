@@ -38,7 +38,7 @@ import requests
 import cosmosdb_helper
 from receiver_reporting import ReceiverReportingSink
 
-reportingSink = ReceiverReportingSink()
+reportingSink: ReceiverReportingSink
 from auth_middleware import get_current_user, get_current_user_from_request, require_auth, get_user_from_request, extract_token_from_request, user_has_role
 from typing import Dict, Any, List, Optional
 

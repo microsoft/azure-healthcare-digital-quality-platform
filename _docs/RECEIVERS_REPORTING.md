@@ -63,10 +63,14 @@ Open `receivers/powerbi/ReceiverAnalytics.pbip` in Power BI Desktop. The project
 - Numerator / denominator performance
 - Operations and validation detail
 
+The semantic model includes a `RowCount` column that is always `1`; the `Total submissions` measure sums it to count submission records consistently after Power Query transformations.
+
 The semantic model parameters are defined in `ReceiverAnalytics.SemanticModel/definition/expressions.tmdl`:
 
 - `SqlServerName` → set to `AZURE_SQL_SERVER_FQDN`
 - `SqlDatabaseName` → set to `AZURE_SQL_DATABASE_NAME`
+
+The checked-in values use `#{AZURE_SQL_SERVER_FQDN}` and `#{AZURE_SQL_DATABASE_NAME}` placeholders. Replace them manually in Power BI Desktop or run token substitution in your deployment pipeline before publishing.
 
 Publish the report to a Fabric workspace after updating the parameters and validating refresh credentials. Use managed identity or service principal access to Azure SQL where supported by your Fabric tenant.
 

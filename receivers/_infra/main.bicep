@@ -89,6 +89,7 @@ param sqlDatabaseName string = 'dq_receiver_reporting'
 param sqlAdministratorLogin string = 'sqladminuser'
 @secure()
 @minLength(16)
+@description('SQL administrator password required by Azure SQL server provisioning. Runtime services use managed identity; this password is break-glass only and becomes unused when Entra-only authentication is enabled.')
 param sqlAdministratorPassword string
 param sqlDatabaseSkuName string = 'Basic'
 param sqlDatabaseSkuTier string = 'Basic'

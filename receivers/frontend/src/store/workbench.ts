@@ -416,6 +416,12 @@ export interface DeqmMeasureReportDoc {
   measureIds?: string[];
   periodStart?: string;
   periodEnd?: string;
+  // QPP submission metadata (issue #14) captured on ingest.
+  submissionIdentifier?: string | null;
+  submissionMethod?: string | null;
+  reportingRole?: string | null;
+  reporterType?: string | null;
+  receiptIdentifier?: string | null;
   receivedAt?: number;
   resource: FhirMeasureReportResource;
 }

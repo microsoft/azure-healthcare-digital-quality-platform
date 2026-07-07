@@ -217,6 +217,10 @@ class MeasureSummarySendRequest(BaseModel):
     engine: Optional[str] = None
     sourceSubmissionId: Optional[str] = None
     reportType: Optional[str] = None
+    # QPP submission metadata (issue #14) — override the env defaults per send.
+    submissionMethod: Optional[str] = None
+    reportingRole: Optional[str] = None
+    reporterType: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -237,8 +241,13 @@ def _deqm_canonical_base() -> str:
     return os.getenv("DEQM_CANONICAL_BASE", DEFAULT_CANONICAL_BASE).rstrip("/")
 
 
-def _deqm_reporter() -> Dict[str, Any]:
-    """Build a reporter Reference from env vars (DEQM_REPORTER_REFERENCE / DEQM_REPORTER_DISPLAY)."""
+def _deqm_reporter(reporter_type: Optional[str] = None) -> Dict[str, Any]:
+    """Build a reporter Reference from env vars (DEQM_REPORTER_REFERENCE / DEQM_REPORTER_DISPLAY).
+
+    When a reporter *type* is configured (issue #14 — explicit reporting entity
+    type such as ``Organization`` / ``Practitioner`` / ``Group``) it is added as
+    ``Reference.type`` so consumers do not have to infer the reporter kind.
+    """
     ref = os.getenv("DEQM_REPORTER_REFERENCE", "").strip()
     display = os.getenv("DEQM_REPORTER_DISPLAY", "").strip()
     reporter: Dict[str, Any] = {}
@@ -246,16 +255,111 @@ def _deqm_reporter() -> Dict[str, Any]:
         reporter["reference"] = ref
     if display:
         reporter["display"] = display
-    if not reporter:
+    if "reference" not in reporter and "display" not in reporter:
         reporter["display"] = "Submitters Stack"
+    rtype = _deqm_reporter_type(reporter_type)
+    if rtype:
+        reporter["type"] = rtype
     return reporter
 
 
-def _deqm_pop(code: str, count: int) -> Dict[str, Any]:
-    return {
-        "code": {"coding": [{"system": _POPULATION_CS, "code": code}]},
-        "count": int(count),
-    }
+# ---------------------------------------------------------------------------
+# QPP submission metadata (issue #14)
+# ---------------------------------------------------------------------------
+
+# Illustrative code systems for QPP submission concepts. Real programs may
+# swap these for official value sets; see _docs/openapi/qpp-submission-metadata.openapi.yaml.
+_QPP_SUBMISSION_METHOD_CS = "http://terminology.hl7.org/CodeSystem/qpp-submission-method"
+_QPP_REPORTING_ROLE_CS = "http://terminology.hl7.org/CodeSystem/qpp-reporting-role"
+
+
+def _qpp_ext(suffix: str) -> str:
+    """Full canonical URL for a QPP/DEQM extension defined by this accelerator."""
+    return f"{_deqm_canonical_base()}/StructureDefinition/{suffix}"
+
+
+def _deqm_submission_method(override: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """CodeableConcept for how the data was collected/submitted (registry, ehr, claims, ...)."""
+    code = (override or os.getenv("DEQM_SUBMISSION_METHOD", "")).strip()
+    if not code:
+        return None
+    return {"coding": [{"system": _QPP_SUBMISSION_METHOD_CS, "code": code}], "text": code}
+
+
+def _deqm_reporting_role(override: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """CodeableConcept for the reporting role (individual, group, apm-entity, ...)."""
+    code = (override or os.getenv("DEQM_REPORTING_ROLE", "")).strip()
+    if not code:
+        return None
+    return {"coding": [{"system": _QPP_REPORTING_ROLE_CS, "code": code}], "text": code}
+
+
+def _deqm_reporter_type(override: Optional[str] = None) -> Optional[str]:
+    """Reporter Reference.type (e.g. Organization/Practitioner/PractitionerRole/Group)."""
+    value = (override or os.getenv("DEQM_REPORTER_TYPE", "")).strip()
+    return value or None
+
+
+def _survey_extension(survey: Dict[str, Any]) -> Dict[str, Any]:
+    """CAHPS/ACR survey supplemental result extension (issue #14)."""
+    sub: List[Dict[str, Any]] = []
+    if survey.get("reliabilityScore") is not None:
+        try:
+            sub.append({"url": "reliabilityScore", "valueDecimal": float(survey["reliabilityScore"])})
+        except (TypeError, ValueError):
+            pass
+    if survey.get("maskIndicator") is not None:
+        sub.append({"url": "maskIndicator", "valueBoolean": bool(survey["maskIndicator"])})
+    if survey.get("belowMinimum") is not None:
+        sub.append({"url": "belowMinimum", "valueBoolean": bool(survey["belowMinimum"])})
+    return {"url": _qpp_ext("deqm-survey-result"), "extension": sub}
+
+
+def _apply_report_metadata(
+    report: Dict[str, Any],
+    *,
+    send_id: Optional[str],
+    submission_method: Optional[Dict[str, Any]],
+    reporting_role: Optional[Dict[str, Any]],
+) -> None:
+    """Attach QPP submission metadata to a top-level MeasureReport (issue #14).
+
+    - ``identifier`` carries the proof-of-submission / receipt id (no custom extension).
+    - submission-method and reporting-role are added as MeasureReport extensions.
+    """
+    if send_id and "identifier" not in report:
+        report["identifier"] = [
+            {"system": f"{_deqm_canonical_base()}/submission-id", "value": send_id}
+        ]
+    exts: List[Dict[str, Any]] = []
+    if submission_method:
+        exts.append({"url": _qpp_ext("deqm-submission-method"), "valueCodeableConcept": submission_method})
+    if reporting_role:
+        exts.append({"url": _qpp_ext("deqm-reporting-role"), "valueCodeableConcept": reporting_role})
+    if exts:
+        report.setdefault("extension", []).extend(exts)
+
+
+def _deqm_pop(code: str, count: Any) -> Dict[str, Any]:
+    """Build a measure-population entry.
+
+    ``MeasureReport.group.population.count`` is an integer in FHIR R4, so decimal
+    numerator/denominator values (QCDR measures, issue #14) are preserved exactly
+    via a ``deqm-population-count-decimal`` extension while ``count`` carries the
+    truncated integer for base-FHIR consumers.
+    """
+    pop: Dict[str, Any] = {"code": {"coding": [{"system": _POPULATION_CS, "code": code}]}}
+    try:
+        value = float(count)
+    except (TypeError, ValueError):
+        value = 0.0
+    int_count = int(value)
+    pop["count"] = int_count
+    if value != int_count:
+        pop["extension"] = [
+            {"url": _qpp_ext("deqm-population-count-decimal"), "valueDecimal": value}
+        ]
+    return pop
 
 
 def _deqm_group_resource(
@@ -409,6 +513,10 @@ def _deqm_fhir_bundle(resources: List[Dict[str, Any]]) -> Dict[str, Any]:
 def _build_deqm_fhir_payload(
     summary_payload: Dict[str, Any],
     report_type: str,
+    *,
+    submission_method: Optional[str] = None,
+    reporting_role: Optional[str] = None,
+    reporter_type: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build a FHIR MeasureReport (or Bundle) from a cohort rollup.
 
@@ -419,6 +527,8 @@ def _build_deqm_fhir_payload(
         ``perMeasure``, ``perMember``, ``periodStart``, ``periodEnd``, ``cohort``.
     report_type:
         One of ``"individual"``, ``"subject-list"``, ``"summary"``.
+    submission_method, reporting_role, reporter_type:
+        Optional QPP submission metadata (issue #14) overriding the env defaults.
 
     Returns
     -------
@@ -426,8 +536,22 @@ def _build_deqm_fhir_payload(
     or individual type).
     """
     base = _deqm_canonical_base()
-    reporter = _deqm_reporter()
+    reporter = _deqm_reporter(reporter_type)
     now_ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    # QPP submission metadata (issue #14) applied to each top-level report.
+    send_id = summary_payload.get("sourceSendId")
+    qpp_submission_method = _deqm_submission_method(submission_method)
+    qpp_reporting_role = _deqm_reporting_role(reporting_role)
+
+    def _with_metadata(report: Dict[str, Any]) -> Dict[str, Any]:
+        _apply_report_metadata(
+            report,
+            send_id=send_id,
+            submission_method=qpp_submission_method,
+            reporting_role=qpp_reporting_role,
+        )
+        return report
 
     cohort = summary_payload.get("cohort") or {}
     cohort_id = cohort.get("id") or "unknown"
@@ -461,15 +585,18 @@ def _build_deqm_fhir_payload(
             num = int(rollup.get("numerator") or 0)
             patients = int(rollup.get("patients") or 0)
             excl = int(rollup.get("exclusions") or 0)
+            exceptions = int(rollup.get("exceptions") or 0)
             perf = rollup.get("performanceRate")
 
             populations = [
                 _deqm_pop("initial-population", patients),
-                _deqm_pop("denominator", denom),
-                _deqm_pop("numerator", num),
+                _deqm_pop("denominator", rollup.get("denominator") or 0),
+                _deqm_pop("numerator", rollup.get("numerator") or 0),
             ]
             if excl:
                 populations.append(_deqm_pop("denominator-exclusion", excl))
+            if exceptions:
+                populations.append(_deqm_pop("denominator-exception", exceptions))
 
             group: Dict[str, Any] = {"population": populations}
             if perf is not None:
@@ -478,7 +605,25 @@ def _build_deqm_fhir_payload(
                 except (TypeError, ValueError):
                     pass
 
-            report: Dict[str, Any] = {
+            # QCDR performanceNotMet (issue #14): cases in the performance
+            # denominator that did not meet the numerator (and were not excluded
+            # or excepted). Carried as a group extension since it is not a base
+            # measure-population code.
+            group_ext: List[Dict[str, Any]] = []
+            if denom:
+                perf_not_met = denom - num - excl - exceptions
+                if perf_not_met < 0:
+                    perf_not_met = 0
+                group_ext.append(
+                    {"url": _qpp_ext("deqm-performance-not-met"), "valueInteger": perf_not_met}
+                )
+            survey = rollup.get("survey")
+            if isinstance(survey, dict):
+                group_ext.append(_survey_extension(survey))
+            if group_ext:
+                group["extension"] = group_ext
+
+            report: Dict[str, Any] = _with_metadata({
                 "resourceType": "MeasureReport",
                 "id": str(uuid.uuid4()),
                 "status": "complete",
@@ -490,7 +635,7 @@ def _build_deqm_fhir_payload(
                 "period": period_block,
                 "group": [group],
                 "contained": [group_resource],
-            }
+            })
             reports.append(report)
 
         if len(reports) == 1:
@@ -567,7 +712,7 @@ def _build_deqm_fhir_payload(
             if excl:
                 sl_pops.append(_deqm_pop("denominator-exclusion", excl))
 
-            report = {
+            report = _with_metadata({
                 "resourceType": "MeasureReport",
                 "id": str(uuid.uuid4()),
                 "status": "complete",
@@ -579,7 +724,7 @@ def _build_deqm_fhir_payload(
                 "period": period_block,
                 "group": [{"population": sl_pops}],
                 "contained": contained,
-            }
+            })
             reports.append(report)
 
         if len(reports) == 1:
@@ -607,7 +752,7 @@ def _build_deqm_fhir_payload(
             ]
             if m_excl:
                 m_pops.append(_deqm_pop("denominator-exclusion", 1))
-            individual_reports.append({
+            individual_reports.append(_with_metadata({
                 "resourceType": "MeasureReport",
                 "id": str(uuid.uuid4()),
                 "status": "complete",
@@ -618,7 +763,7 @@ def _build_deqm_fhir_payload(
                 "date": now_ts,
                 "period": period_block,
                 "group": [{"population": m_pops}],
-            })
+            }))
 
     return _deqm_fhir_bundle(individual_reports)
 
@@ -1808,7 +1953,13 @@ def create_workbench_router(
             )
 
         # Build the FHIR payload from the rollup.
-        fhir_payload = _build_deqm_fhir_payload(summary_payload, rt)
+        fhir_payload = _build_deqm_fhir_payload(
+            summary_payload,
+            rt,
+            submission_method=payload.submissionMethod,
+            reporting_role=payload.reportingRole,
+            reporter_type=payload.reporterType,
+        )
 
         receivers_url = os.getenv("RECEIVERS_BACKEND_BASE_URL", "http://127.0.0.1:8013")
         platform_url = os.getenv("PLATFORM_BACKEND_BASE_URL", "http://127.0.0.1:8014")

@@ -553,6 +553,10 @@ export async function sendCohortMeasureReport(
     note?: string;
     engine?: string;
     sourceSubmissionId?: string;
+    // QPP submission metadata (issue #14).
+    submissionMethod?: string;
+    reportingRole?: string;
+    reporterType?: string;
   },
 ): Promise<MeasureSummarySend> {
   const data = await api<{ send: MeasureSummarySend; reportType: string }>(

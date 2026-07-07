@@ -1475,6 +1475,67 @@ to prevent accidental cross-tenant joins.
 6. Network policy: receiver namespace `dq` egress restricted to APIM,
    Cosmos, Service Bus, Key Vault, and App Insights only.
 
+#### B.6.1) OAuth 2.0 / Entra ID implementation (issue #16)
+
+The Submitter authenticates to the Receiver with the **OAuth 2.0
+client-credentials flow** before invoking any Receiver ingest API. Tokens are
+minted by Microsoft Entra ID and validated by the Receiver on every request.
+
+```text
+Submitter ──1. request token (client id + secret/cert)──▶ Microsoft Entra ID
+Submitter ◀────────────2. OAuth access token───────────── Microsoft Entra ID
+Submitter ──3. POST + Bearer token──▶ Receiver API (FastAPI)
+                                       └─ 4. validate: signature, iss, aud, exp,
+                                              tenant (ALLOWED_TENANTS), app role
+```
+
+**Entra setup.**
+
+- *Receiver* — App Registration `dq-receiver-api`; Expose an API with
+  Application ID URI `api://dq-receiver-api`; define App Roles
+  `Receiver.Submit`, `Receiver.Read`, `Receiver.Admin` (allowed member type:
+  *Applications*).
+- *Submitter* — App Registration `dq-submitter-client`; add an **application
+  permission** to `dq-receiver-api` (`Receiver.Submit`); an admin grants
+  consent. Credentials are a client secret (Key Vault) or, preferably, a
+  certificate or managed identity.
+
+**Role → endpoint mapping (Receiver).**
+
+| Endpoint | Method | Required role |
+|---|---|---|
+| `/api/workbench/measure-reports` | POST | `Receiver.Submit` or `Receiver.Admin` |
+| `/api/workbench/measure-summaries` | POST | `Receiver.Submit` or `Receiver.Admin` |
+| `/api/workbench/measure-reports*` | GET | `Receiver.Read`, `Receiver.Submit`, or `Receiver.Admin` |
+| `/api/workbench/measure-summaries*` | GET | `Receiver.Read`, `Receiver.Submit`, or `Receiver.Admin` |
+
+Missing/invalid tokens return **401**; valid tokens without the required role
+return **403**. `DEVELOPMENT_MODE=true` bypasses both for local work.
+
+**Configuration.**
+
+| Variable | Stack | Purpose |
+|---|---|---|
+| `ENTRA_TENANT_ID` | both | Token-issuing tenant (falls back to `AZURE_TENANT_ID`). |
+| `ENTRA_CLIENT_ID` | both | App (client) ID (falls back to `AZURE_CLIENT_ID`). |
+| `ENTRA_CLIENT_SECRET` | submitter | Client secret; omit to use managed/workload identity. |
+| `ENTRA_CLIENT_CERTIFICATE_PATH` | submitter | Optional certificate credential. |
+| `RECEIVER_APP_ID_URI` | both | Receiver App ID URI; scope becomes `<uri>/.default`. |
+| `RECEIVER_OAUTH_SCOPE` | submitter | Optional explicit scope override. |
+| `ALLOWED_TENANTS` | receiver | Comma-separated tenant allow-list; empty = home tenant only; `*` = any. |
+| `REQUIRED_ROLE` | receiver | Default submission role (`Receiver.Submit`). |
+
+**Multi-tenant.** Single-tenant deployments leave `ALLOWED_TENANTS` empty (only
+the home tenant validates). Cross-tenant (Customer A Submitter → Customer B
+Receiver) lists each trusted Submitter tenant ID in `ALLOWED_TENANTS`, or uses
+`*` for fully multi-tenant Receivers. Trust is established by admin-consenting
+the Submitter app against the Receiver's exposed API.
+
+**Swagger.** When `ENTRA_TENANT_ID` and `RECEIVER_APP_ID_URI` are set, the
+Receiver's `/docs` advertises the `OAuth2Entra` security scheme
+(client-credentials + authorization-code) so the **Authorize** button can mint a
+token interactively.
+
 ### B.7) Receiver acceptance criteria
 
 1. A Submitter calling `POST /fhir/Measure/CMS165v9/$submit-data` with a

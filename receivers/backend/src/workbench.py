@@ -15,6 +15,7 @@ MVP measures appear without requiring a manual import step.
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from copy import deepcopy
@@ -33,6 +34,11 @@ import measure_catalog
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}")
 _VALID_REPORT_TYPES = {"individual", "subject-list", "summary"}
+
+# Da Vinci Member Attribution List (ATR) Group profile canonical. Received
+# cohort rosters are exported/imported as Groups shaped to align with this
+# profile; see _docs/DEQM_DAVINCI_ATR_GAP_ANALYSIS.md for conformance details.
+_ATR_GROUP_PROFILE = "http://hl7.org/fhir/us/davinci-atr/StructureDefinition/atr-group"
 
 # Map MeasureReport.type to the Cosmos docType used for persistence.
 _REPORT_TYPE_TO_DOC_TYPE: Dict[str, str] = {
@@ -323,6 +329,132 @@ def _extract_measure_id(canonical: str) -> str:
     # Return the last path segment
     parts = canonical.rsplit("/", 1)
     return parts[-1] if parts[-1] else ""
+
+
+def _receiver_canonical_base() -> str:
+    return os.getenv("DEQM_CANONICAL_BASE", measure_catalog.DEFAULT_CANONICAL_BASE).rstrip("/")
+
+
+def _atr_group_resource(
+    cohort_id: str,
+    member_ids: List[str],
+    *,
+    name: Optional[str] = None,
+    measure_ids: Optional[List[str]] = None,
+    period_start: Optional[str] = None,
+    period_end: Optional[str] = None,
+    managing_entity: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Build a Da Vinci ATR-aligned FHIR Group describing a cohort roster.
+
+    Mirrors the submitters builder so the receivers stack can round-trip cohort
+    rosters as standards-based Group resources (Da Vinci Member Attribution
+    List) instead of a proprietary cohort payload.
+    """
+    period: Optional[Dict[str, str]] = None
+    if period_start or period_end:
+        period = {}
+        if period_start:
+            period["start"] = period_start
+        if period_end:
+            period["end"] = period_end
+
+    members: List[Dict[str, Any]] = []
+    for mid in member_ids:
+        member: Dict[str, Any] = {
+            "entity": {"reference": f"Patient/{mid}"},
+            "inactive": False,
+        }
+        if period:
+            member["period"] = dict(period)
+        members.append(member)
+
+    group: Dict[str, Any] = {
+        "resourceType": "Group",
+        "id": f"group-{cohort_id}",
+        "meta": {"profile": [_ATR_GROUP_PROFILE]},
+        "type": "person",
+        "actual": True,
+        "quantity": len(member_ids),
+        "member": members,
+    }
+    if name:
+        group["name"] = name
+
+    characteristics: List[Dict[str, Any]] = [
+        {
+            "code": {
+                "coding": [
+                    {
+                        "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationValue",
+                        "code": "COHORT",
+                    }
+                ],
+                "text": "Quality measurement cohort membership",
+            },
+            "valueBoolean": True,
+            "exclude": False,
+        }
+    ]
+    if period:
+        characteristics.append(
+            {
+                "code": {"text": "Measurement / attribution period"},
+                "valuePeriod": dict(period),
+                "exclude": False,
+            }
+        )
+    base = _receiver_canonical_base()
+    for mid in measure_ids or []:
+        characteristics.append(
+            {
+                "code": {"text": "In-scope quality measure"},
+                "valueReference": {"reference": f"{base}/Measure/{mid}"},
+                "exclude": False,
+            }
+        )
+    group["characteristic"] = characteristics
+
+    if managing_entity:
+        group["managingEntity"] = managing_entity
+    return group
+
+
+def _atr_group_to_cohort(group: Dict[str, Any]) -> "tuple[str, Dict[str, Any]]":
+    """Parse a FHIR Group (Da Vinci ATR roster) into a workbench cohort doc."""
+    gid = str(group.get("id") or "").strip()
+    if gid.startswith("group-"):
+        cohort_id = gid[len("group-"):]
+    else:
+        cohort_id = gid or f"cohort-{_now_ms()}"
+
+    member_ids: List[str] = []
+    for member in group.get("member") or []:
+        ref = ((member or {}).get("entity") or {}).get("reference") or ""
+        if ref.startswith("Patient/"):
+            pid = ref.split("/", 1)[1]
+            if pid and pid not in member_ids:
+                member_ids.append(pid)
+
+    measure_ids: List[str] = []
+    for characteristic in group.get("characteristic") or []:
+        ref = ((characteristic or {}).get("valueReference") or {}).get("reference") or ""
+        if "/Measure/" in ref:
+            mid = ref.split("/Measure/", 1)[1].split("|", 1)[0]
+            if mid and mid not in measure_ids:
+                measure_ids.append(mid)
+
+    cohort_doc: Dict[str, Any] = {
+        "id": cohort_id,
+        "docType": "cohort",
+        "name": group.get("name") or cohort_id,
+        "description": "Imported from a FHIR Group (Da Vinci ATR patient roster).",
+        "memberIds": member_ids,
+        "measureIds": measure_ids,
+        "tags": [],
+        "source": "fhir-group-import",
+    }
+    return cohort_id, cohort_doc
 
 
 def _builtin_measure_meta(measure_id: str, entry: Dict[str, Any]) -> Dict[str, Any]:
@@ -875,6 +1007,65 @@ def create_workbench_router(
         except Exception as e:  # noqa: BLE001
             raise HTTPException(status_code=500, detail=str(e))
         return {"cohort": saved}
+
+    # ----------------------------------------------------------------------
+    # Cohort ↔ FHIR Group exchange (Da Vinci ATR patient-roster alignment)
+    # ----------------------------------------------------------------------
+
+    @router.get("/cohorts/{cohort_id}/Group")
+    async def export_cohort_group(
+        cohort_id: str,
+        _user: Dict[str, Any] = Depends(auth_dependency),
+    ):
+        """Return a received cohort roster as a Da Vinci ATR-aligned FHIR ``Group``."""
+        _ensure_seeded()
+        try:
+            cohort = cohorts_helper.get_doc("cohort", cohort_id)
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=503, detail=str(e))
+        if not cohort:
+            raise HTTPException(status_code=404, detail=f"cohort {cohort_id} not found")
+        return _atr_group_resource(
+            cohort_id,
+            list(cohort.get("memberIds") or []),
+            name=cohort.get("name"),
+            measure_ids=list(cohort.get("measureIds") or []),
+        )
+
+    @router.post("/cohorts/$import-group")
+    async def import_cohort_group(
+        group: Dict[str, Any] = Body(...),
+        _user: Dict[str, Any] = Depends(auth_dependency),
+    ):
+        """Create or update a cohort from a FHIR ``Group`` (Da Vinci ATR roster)."""
+        if not isinstance(group, dict) or group.get("resourceType") != "Group":
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "resourceType": "OperationOutcome",
+                    "issue": [
+                        {
+                            "severity": "error",
+                            "code": "invalid",
+                            "diagnostics": "Request body must be a FHIR Group resource.",
+                        }
+                    ],
+                },
+            )
+        cohort_id, cohort_doc = _atr_group_to_cohort(group)
+        try:
+            existing = cohorts_helper.get_doc("cohort", cohort_id) or {}
+        except Exception:  # noqa: BLE001
+            existing = {}
+        cohort_doc["createdAt"] = existing.get("createdAt", _now_ms())
+        cohort_doc["updatedAt"] = _now_ms()
+        if existing.get("tags"):
+            cohort_doc["tags"] = existing["tags"]
+        try:
+            saved = cohorts_helper.upsert_doc("cohort", cohort_id, cohort_doc)
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=500, detail=str(e))
+        return {"cohort": saved, "memberCount": len(cohort_doc.get("memberIds") or [])}
 
     # ----------------------------------------------------------------------
     # Members directory (read-only listing of patients available for cohorts)

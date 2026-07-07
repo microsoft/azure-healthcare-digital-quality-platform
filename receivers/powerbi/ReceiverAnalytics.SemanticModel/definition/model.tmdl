@@ -3,7 +3,7 @@ model ReceiverAnalytics
 	defaultPowerBIDataSourceVersion: powerBI_V3
 	sourceQueryCulture: en-US
 
-	measure 'Total submissions' = SUM('SubmissionHistory'[SubmissionCount])
+	measure 'Total submissions' = SUM('SubmissionHistory'[RowCount])
 	measure 'Active submitters' = DISTINCTCOUNT('SubmissionHistory'[SubmitterId])
 	measure 'Programs onboarded' = DISTINCTCOUNT('SubmissionHistory'[ProgramId])
 	measure 'Measures processed' = DISTINCTCOUNT('SubmissionHistory'[MeasureId])

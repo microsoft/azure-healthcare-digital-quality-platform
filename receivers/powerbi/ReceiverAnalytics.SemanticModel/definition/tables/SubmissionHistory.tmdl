@@ -25,9 +25,9 @@ table SubmissionHistory
 		dataType: string
 		sourceColumn: Status
 
-	column SubmissionCount
+	column RowCount
 		dataType: int64
-		sourceColumn: SubmissionCount
+		sourceColumn: RowCount
 
 	partition SubmissionHistory = m
 		mode: import
@@ -35,6 +35,6 @@ table SubmissionHistory
 			let
 			    Source = Sql.Database(SqlServerName, SqlDatabaseName),
 			    Table = Source{[Schema="dq",Item="SubmissionHistory"]}[Data],
-			    WithCount = Table.AddColumn(Table, "SubmissionCount", each 1, Int64.Type)
+			    WithCount = Table.AddColumn(Table, "RowCount", each 1, Int64.Type)
 			in
 			    WithCount

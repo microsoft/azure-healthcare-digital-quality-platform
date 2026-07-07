@@ -37,6 +37,8 @@ import requests
 # Custom modules for database operations
 import cosmosdb_helper
 from receiver_reporting import ReceiverReportingSink
+
+reportingSink = ReceiverReportingSink()
 from auth_middleware import get_current_user, get_current_user_from_request, require_auth, get_user_from_request, extract_token_from_request, user_has_role
 from typing import Dict, Any, List, Optional
 
@@ -658,8 +660,7 @@ def _persist_measurement_execution(
 
     if hasattr(cosmosDBHelper, "save_measurement_result"):
         cosmosDBHelper.save_measurement_result(patient_id, record)
-        if "reportingSink" in globals():
-            reportingSink.persist_measurement_execution(patient_id, record)
+        reportingSink.persist_measurement_execution(patient_id, record)
         return True
 
     # Fallback for mock helper or helpers without partial-update support.
@@ -670,8 +671,7 @@ def _persist_measurement_execution(
     patient_data["measurement_executions"] = executions
     patient_data["last_measurement_result"] = record
     cosmosDBHelper.save_patient_data(patient_id, patient_data)
-    if "reportingSink" in globals():
-        reportingSink.persist_measurement_execution(patient_id, record)
+    reportingSink.persist_measurement_execution(patient_id, record)
     return True
 
 # Task model for background processing

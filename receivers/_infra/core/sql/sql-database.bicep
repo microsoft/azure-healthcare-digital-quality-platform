@@ -14,7 +14,7 @@ param administratorLogin string
 
 @secure()
 @minLength(16)
-@description('SQL administrator password used for break-glass provisioning. Runtime services use managed identity. Provide via AZURE_SQL_ADMINISTRATOR_PASSWORD or a Key Vault-backed azd environment value.')
+@description('SQL administrator password used for break-glass provisioning. Runtime services use managed identity. Provide via AZURE_SQL_ADMINISTRATOR_PASSWORD or a Key Vault-backed azd environment value; Azure SQL requires this at server creation even when Entra-only authentication later disables SQL password sign-in.')
 param administratorPassword string
 
 @description('Public network access for the logical server. Disable when private endpoint networking is enabled.')

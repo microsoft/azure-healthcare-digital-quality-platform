@@ -1163,7 +1163,7 @@ output EMBEDDING_MODEL_DEPLOYMENT_NAME string = embeddingModelDeploymentName
 output AZURE_SQL_SERVER_NAME string = receiverReportingSql.outputs.serverName
 output AZURE_SQL_DATABASE_NAME string = receiverReportingSql.outputs.databaseName
 output AZURE_SQL_SERVER_FQDN string = receiverReportingSql.outputs.fullyQualifiedDomainName
-output AZURE_SQL_CONNECTION_STRING string = 'Driver={ODBC Driver 18 for SQL Server};Server=tcp:${receiverReportingSql.outputs.fullyQualifiedDomainName},1433;Database=${receiverReportingSql.outputs.databaseName};Encrypt=yes;TrustServerCertificate=no;Authentication=ActiveDirectoryMsi;'
+output AZURE_SQL_CONNECTION_STRING string = 'Driver={ODBC Driver 18 for SQL Server};Server=tcp:${receiverReportingSql.outputs.fullyQualifiedDomainName},1433;Database=${receiverReportingSql.outputs.databaseName};Encrypt=yes;TrustServerCertificate=no;Authentication=ActiveDirectoryMsi;UID=${mcpUserAssignedIdentity.outputs.identityClientId};'
 
 // CosmosDB outputs
 output COSMOSDB_ENDPOINT string = cosmosAccount.outputs.endpoint

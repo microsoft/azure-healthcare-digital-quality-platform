@@ -51,11 +51,6 @@ class ReceiverReportingSink:
                 )
         return cls(connection_string=connection_string, enabled=enabled)
 
-    def _connect(self):
-        import pyodbc  # type: ignore[import-not-found]
-
-        return pyodbc.connect(self.connection_string, autocommit=True, timeout=5)
-
     def _execute(self, sql: str, *params: Any) -> bool:
         if not self.enabled:
             return False
@@ -217,7 +212,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?);
         return self.persist_processing_event(
             correlation_id=patient_id,
             event_type="measure.evaluated",
-            measure_id=",".join(str(m) for m in result.get("measureIds", []) if m) or result.get("measureId"),
+            measure_id=_bounded_text(",".join(str(m) for m in result.get("measureIds", []) if m) or result.get("measureId"), 400),
             submitter_id=os.getenv("RECEIVER_DEFAULT_SUBMITTER_ID", "receiver-workbench"),
             program_id=os.getenv("RECEIVER_DEFAULT_PROGRAM_ID", "default-program"),
             status=str(result.get("status") or "completed"),
@@ -367,3 +362,13 @@ def _coerce_int(value: Any) -> Optional[int]:
 
 def _json_dumps(value: Any) -> str:
     return json.dumps(value, separators=(",", ":"), sort_keys=True, default=str)
+
+
+def _bounded_text(value: Any, max_length: int) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value)
+    if len(text) <= max_length:
+        return text
+    logger.warning("Truncating receiver reporting text value from %s to %s characters", len(text), max_length)
+    return text[:max_length]

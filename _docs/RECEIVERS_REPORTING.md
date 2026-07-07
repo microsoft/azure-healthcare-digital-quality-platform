@@ -10,7 +10,7 @@ The Receivers stack provisions an Azure SQL Database for operational reporting a
 - Azure SQL Database (`AZURE_SQL_DATABASE_NAME`, default `dq_receiver_reporting`)
 - Private endpoint and `privatelink.database.windows.net` DNS zone when `vnetEnabled=true`
 - Optional Microsoft Entra SQL administrator (`AZURE_SQL_ENTRA_ADMIN_OBJECT_ID`, `AZURE_SQL_ENTRA_ADMIN_LOGIN`)
-- Managed-identity ODBC connection string output (`AZURE_SQL_CONNECTION_STRING`)
+- Managed-identity ODBC connection string output (`AZURE_SQL_CONNECTION_STRING`), including the receivers managed identity client ID as `UID`
 
 The post-provision hooks write these values to `receivers/backend/.env` and set `RECEIVER_REPORTING_SQL_ENABLED=true`.
 
@@ -29,6 +29,8 @@ Apply `receivers/reporting/sql/schema.sql` after `azd provision` completes. It c
 | Processing events | `dq.ProcessingEvents` |
 | Audit logs | `dq.AuditLogs` |
 | Quality metrics | `dq.QualityMetrics` |
+
+Azure SQL requires a break-glass SQL administrator password at server creation. When `AZURE_SQL_AAD_ONLY_AUTH=true`, that password is not accepted for sign-in after the Microsoft Entra administrator and Entra-only setting are applied.
 
 For managed identity access, connect as the configured Microsoft Entra SQL administrator and create contained users for the receiver workload identities before running migrations, for example:
 

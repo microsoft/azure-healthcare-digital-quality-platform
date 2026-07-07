@@ -312,6 +312,31 @@ export async function updateCohortMembers(
   return data.cohort;
 }
 
+// ---------------------------------------------------------------------------
+// Cohort ↔ FHIR Group exchange (Da Vinci ATR patient roster)
+// ---------------------------------------------------------------------------
+
+export interface FhirGroup {
+  resourceType: "Group";
+  id?: string;
+  [key: string]: unknown;
+}
+
+/** Export a cohort roster as a Da Vinci ATR-aligned FHIR Group resource. */
+export async function exportCohortGroup(cohortId: string): Promise<FhirGroup> {
+  return api<FhirGroup>(`/cohorts/${encodeURIComponent(cohortId)}/Group`);
+}
+
+/** Create or update a cohort from a FHIR Group (Da Vinci ATR roster). */
+export async function importCohortGroup(
+  group: unknown,
+): Promise<{ cohort: WorkbenchCohort; memberCount: number }> {
+  return api<{ cohort: WorkbenchCohort; memberCount: number }>(
+    "/cohorts/$import-group",
+    { method: "POST", body: JSON.stringify(group) },
+  );
+}
+
 export async function listWorkbenchMembers(): Promise<WorkbenchMember[]> {
   const data = await api<{ members: WorkbenchMember[] }>("/members");
   return data.members || [];

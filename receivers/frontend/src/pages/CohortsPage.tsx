@@ -1367,6 +1367,33 @@ const CohortsPage: React.FC = () => {
                                     ? ` · reporter: ${r.resource.reporter.display}`
                                     : ""}
                                 </div>
+                                {(r.submissionMethod ||
+                                  r.reportingRole ||
+                                  r.reporterType ||
+                                  r.receiptIdentifier) && (
+                                  <div className="flex flex-wrap gap-1 text-[11px]">
+                                    {r.submissionMethod && (
+                                      <span className="px-1.5 py-0.5 rounded border bg-indigo-50 text-indigo-800 border-indigo-200">
+                                        method: {r.submissionMethod}
+                                      </span>
+                                    )}
+                                    {r.reportingRole && (
+                                      <span className="px-1.5 py-0.5 rounded border bg-teal-50 text-teal-800 border-teal-200">
+                                        role: {r.reportingRole}
+                                      </span>
+                                    )}
+                                    {r.reporterType && (
+                                      <span className="px-1.5 py-0.5 rounded border bg-gray-100 text-gray-700 border-gray-200">
+                                        reporter: {r.reporterType}
+                                      </span>
+                                    )}
+                                    {r.receiptIdentifier && (
+                                      <span className="px-1.5 py-0.5 rounded border bg-green-50 text-green-800 border-green-200 font-mono">
+                                        receipt: {r.receiptIdentifier}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                                 <div className="flex gap-3 text-xs text-gray-700">
                                   <span>
                                     Numerator:{" "}

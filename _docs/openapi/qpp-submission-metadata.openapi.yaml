@@ -1,0 +1,277 @@
+openapi: 3.0.3
+info:
+  title: QPP Submission Metadata & DEQM Reporting Enhancements
+  version: 1.0.0
+  description: |
+    OpenAPI contract for the QPP submission-metadata enhancements layered onto the
+    DEQM `MeasureReport` exchange (issue #14). These are **additive** to the
+    reportType exchange (`cross-stack-measure-report-exchange.openapi.yaml`) — a
+    plain DEQM MeasureReport remains valid; the fields below enrich it with
+    submission semantics that quality programs (QPP, IQR/OQR, QCDR, CAHPS/ACR)
+    rely on.
+
+    ## Producer inputs (submitters)
+
+    `POST /api/workbench/cohorts/{cohortId}/measure-reports?reportType=...` accepts
+    (in body or via env defaults) the following optional fields:
+
+    | Field             | Env default              | Meaning                                      |
+    |-------------------|--------------------------|----------------------------------------------|
+    | `submissionMethod`| `DEQM_SUBMISSION_METHOD`  | registry / ehr / claims / chart-abstracted …|
+    | `reportingRole`   | `DEQM_REPORTING_ROLE`     | individual / group / apm-entity …           |
+    | `reporterType`    | `DEQM_REPORTER_TYPE`      | Organization / Practitioner / Group …        |
+
+    ## MeasureReport enrichments emitted
+
+    | Concept                    | FHIR location                                             |
+    |----------------------------|-----------------------------------------------------------|
+    | Proof of submission        | `MeasureReport.identifier` (`{base}/submission-id`)       |
+    | Reporter type              | `MeasureReport.reporter.type`                            |
+    | Submission method          | extension `.../deqm-submission-method` (CodeableConcept)  |
+    | Reporting role             | extension `.../deqm-reporting-role` (CodeableConcept)     |
+    | Decimal numerator/denom    | `population.extension` `.../deqm-population-count-decimal`|
+    | QCDR performanceNotMet     | `group.extension` `.../deqm-performance-not-met` (int)    |
+    | Denominator exception      | population code `denominator-exception`                   |
+    | CAHPS/ACR survey result    | `group.extension` `.../deqm-survey-result`               |
+
+    `{base}` is the DEQM canonical base (`DEQM_CANONICAL_BASE`).
+
+    ## Consumer (receivers)
+
+    On `POST /api/workbench/measure-reports`, the receiver captures the metadata
+    into the persisted index doc and issues a **receipt identifier**:
+
+    ```json
+    {
+      "report": {
+        "submissionIdentifier": "mr-send-1783400000000",
+        "submissionMethod": "ehr",
+        "reportingRole": "group",
+        "reporterType": "Organization",
+        "receiptIdentifier": "receipt-1783400000123"
+      }
+    }
+    ```
+
+    The submission-method / reporting-role code systems used here are illustrative
+    placeholders (`http://terminology.hl7.org/CodeSystem/qpp-*`); real deployments
+    can substitute official QPP value sets without schema changes.
+
+paths:
+  /api/workbench/cohorts/{cohortId}/measure-reports:
+    post:
+      summary: Build & dispatch a DEQM MeasureReport with QPP submission metadata
+      operationId: sendCohortMeasureReportWithQpp
+      parameters:
+        - name: cohortId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: cohort-cms165-htn
+        - name: reportType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [individual, subject-list, summary]
+            default: summary
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeasureReportSendRequest'
+            examples:
+              qppGroupEhr:
+                value:
+                  agencyId: agency-cms
+                  programId: program-cms-mips
+                  measureIds: [CMS165v9]
+                  periodStart: '2026-01-01'
+                  periodEnd: '2026-12-31'
+                  submissionMethod: ehr
+                  reportingRole: group
+                  reporterType: Organization
+      responses:
+        '200':
+          description: Dispatch audit including the built report's identifier.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  send:
+                    type: object
+                  reportType:
+                    type: string
+
+  /api/workbench/measure-reports:
+    post:
+      summary: Ingest a DEQM MeasureReport and issue a submission receipt
+      operationId: ingestMeasureReportWithReceipt
+      requestBody:
+        required: true
+        content:
+          application/fhir+json:
+            schema:
+              $ref: '#/components/schemas/MeasureReportWithQpp'
+      responses:
+        '200':
+          description: Persisted report index doc including captured metadata + receipt.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report:
+                    $ref: '#/components/schemas/PersistedReportDoc'
+        '400':
+          description: DEQM validation failure (deqm-0 / deqm-1 / missing reporter).
+
+components:
+  schemas:
+    MeasureReportSendRequest:
+      type: object
+      required: [agencyId]
+      properties:
+        agencyId:
+          type: string
+        programId:
+          type: string
+        measureIds:
+          type: array
+          items:
+            type: string
+        periodStart:
+          type: string
+          format: date
+        periodEnd:
+          type: string
+          format: date
+        note:
+          type: string
+        reportType:
+          type: string
+          enum: [individual, subject-list, summary]
+        submissionMethod:
+          type: string
+          description: How the data was collected/submitted (registry, ehr, claims, chart-abstracted, …).
+          example: ehr
+        reportingRole:
+          type: string
+          description: Reporting role (individual, group, apm-entity, virtual-group, …).
+          example: group
+        reporterType:
+          type: string
+          description: FHIR Reference.type for the reporter (Organization, Practitioner, PractitionerRole, Group).
+          example: Organization
+
+    MeasureReportWithQpp:
+      type: object
+      description: A DEQM MeasureReport enriched with QPP submission metadata.
+      properties:
+        resourceType:
+          type: string
+          enum: [MeasureReport]
+        identifier:
+          type: array
+          description: Proof-of-submission / receipt identifiers.
+          items:
+            type: object
+            properties:
+              system:
+                type: string
+              value:
+                type: string
+        reporter:
+          type: object
+          properties:
+            reference:
+              type: string
+            display:
+              type: string
+            type:
+              type: string
+              example: Organization
+        extension:
+          type: array
+          items:
+            $ref: '#/components/schemas/QppExtension'
+        group:
+          type: array
+          items:
+            type: object
+            properties:
+              population:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PopulationWithDecimal'
+              extension:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QppExtension'
+
+    PopulationWithDecimal:
+      type: object
+      properties:
+        code:
+          type: object
+        count:
+          type: integer
+          description: Truncated integer count (base FHIR).
+        extension:
+          type: array
+          description: deqm-population-count-decimal carries the exact decimal value.
+          items:
+            $ref: '#/components/schemas/QppExtension'
+
+    QppExtension:
+      type: object
+      properties:
+        url:
+          type: string
+          example: https://example.org/fhir/StructureDefinition/deqm-submission-method
+        valueCodeableConcept:
+          type: object
+        valueInteger:
+          type: integer
+        valueDecimal:
+          type: number
+        extension:
+          type: array
+          items:
+            type: object
+
+    PersistedReportDoc:
+      type: object
+      properties:
+        id:
+          type: string
+        docType:
+          type: string
+        reportType:
+          type: string
+        measureIds:
+          type: array
+          items:
+            type: string
+        submissionIdentifier:
+          type: string
+          nullable: true
+        submissionMethod:
+          type: string
+          nullable: true
+        reportingRole:
+          type: string
+          nullable: true
+        reporterType:
+          type: string
+          nullable: true
+        receiptIdentifier:
+          type: string
+          example: receipt-1783400000123
+        receivedAt:
+          type: integer
+        resource:
+          type: object

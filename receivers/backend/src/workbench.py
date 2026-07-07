@@ -1210,6 +1210,26 @@ def create_workbench_router(
             report_type = report["type"]
             doc_type = _REPORT_TYPE_TO_DOC_TYPE.get(report_type, "measure_report")
             report_id = report.get("id") or f"mr-{_now_ms()}"
+            # QPP submission metadata (issue #14): capture the proof-of-submission
+            # identifier + submission-method / reporting-role from the report and
+            # issue a receiver-side receipt identifier.
+            submission_identifier = None
+            for ident in report.get("identifier") or []:
+                if isinstance(ident, dict) and ident.get("value"):
+                    submission_identifier = ident.get("value")
+                    break
+            submission_method = None
+            reporting_role = None
+            for ext in report.get("extension") or []:
+                url = (ext or {}).get("url") or ""
+                cc = (ext or {}).get("valueCodeableConcept") or {}
+                code = ((cc.get("coding") or [{}])[0] or {}).get("code") or cc.get("text")
+                if url.endswith("deqm-submission-method"):
+                    submission_method = code
+                elif url.endswith("deqm-reporting-role"):
+                    reporting_role = code
+            reporter_type = (report.get("reporter") or {}).get("type")
+            receipt_identifier = f"receipt-{_now_ms()}"
             # Build a small index header alongside the raw FHIR resource so the
             # workbench can list reports without parsing every resource.
             doc: Dict[str, Any] = {
@@ -1219,6 +1239,11 @@ def create_workbench_router(
                 "measureIds": [_extract_measure_id(report.get("measure") or "")],
                 "periodStart": (report.get("period") or {}).get("start"),
                 "periodEnd": (report.get("period") or {}).get("end"),
+                "submissionIdentifier": submission_identifier,
+                "submissionMethod": submission_method,
+                "reportingRole": reporting_role,
+                "reporterType": reporter_type,
+                "receiptIdentifier": receipt_identifier,
                 "receivedAt": _now_ms(),
                 "resource": report,
             }

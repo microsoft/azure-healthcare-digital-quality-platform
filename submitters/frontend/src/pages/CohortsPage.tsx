@@ -315,6 +315,8 @@ const CohortsPage: React.FC = () => {
   const [submitProgramId, setSubmitProgramId] = useState<string>("");
   const [submitNote, setSubmitNote] = useState<string>("");
   const [submitReportType, setSubmitReportType] = useState<DeqmReportType>("summary");
+  const [submitSubmissionMethod, setSubmitSubmissionMethod] = useState<string>("");
+  const [submitReportingRole, setSubmitReportingRole] = useState<string>("");
   const [submitStatus, setSubmitStatus] = useState<string | null>(null);
 
   // measure-summary send (submitters -> receivers + platform)
@@ -748,6 +750,8 @@ const CohortsPage: React.FC = () => {
           periodEnd: periodEnd || undefined,
           note: submitNote,
           engine,
+          submissionMethod: submitSubmissionMethod || undefined,
+          reportingRole: submitReportingRole || undefined,
         });
         setSummarySend(send);
         setExpandedSendId(send.id);
@@ -1657,6 +1661,41 @@ const CohortsPage: React.FC = () => {
                         <option value="summary">Summary (population roll-up)</option>
                         <option value="subject-list">Subject list (per-member refs)</option>
                         <option value="individual">Individual (one per member)</option>
+                      </select>
+                    </label>
+
+                    <label className="text-xs text-gray-700">
+                      Submission method
+                      <select
+                        value={submitSubmissionMethod}
+                        onChange={(e) => setSubmitSubmissionMethod(e.target.value)}
+                        className="block mt-1 px-2 py-1 text-sm border border-gray-300 rounded min-w-[11rem]"
+                        title="QPP: how the quality data was collected/submitted"
+                      >
+                        <option value="">— default —</option>
+                        <option value="ehr">EHR</option>
+                        <option value="registry">Registry</option>
+                        <option value="qcdr">QCDR</option>
+                        <option value="claims">Claims</option>
+                        <option value="chart-abstracted">Chart-abstracted</option>
+                        <option value="cms-web-interface">CMS Web Interface</option>
+                      </select>
+                    </label>
+
+                    <label className="text-xs text-gray-700">
+                      Reporting role
+                      <select
+                        value={submitReportingRole}
+                        onChange={(e) => setSubmitReportingRole(e.target.value)}
+                        className="block mt-1 px-2 py-1 text-sm border border-gray-300 rounded min-w-[10rem]"
+                        title="QPP: reporting entity role"
+                      >
+                        <option value="">— default —</option>
+                        <option value="individual">Individual</option>
+                        <option value="group">Group</option>
+                        <option value="apm-entity">APM entity</option>
+                        <option value="virtual-group">Virtual group</option>
+                        <option value="subgroup">Subgroup</option>
                       </select>
                     </label>
 

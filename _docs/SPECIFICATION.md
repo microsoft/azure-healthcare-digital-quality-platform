@@ -225,6 +225,28 @@ See [`openapi/cohort-group-exchange.openapi.yaml`](openapi/cohort-group-exchange
 for the contract and [`DEQM_DAVINCI_ATR_GAP_ANALYSIS.md`](DEQM_DAVINCI_ATR_GAP_ANALYSIS.md)
 for the capability-statement mapping and documented ATR conformance gaps.
 
+#### 1.4.6) QPP submission metadata (DEQM reporting enhancements)
+
+DEQM `MeasureReport`s carry additional **QPP submission metadata** required by
+CMS QPP / IQR/OQR / QCDR / CAHPS-ACR workflows. All fields are additive — a plain
+DEQM MeasureReport remains valid.
+
+| Concept                 | FHIR location                                              | Config default            |
+|-------------------------|-----------------------------------------------------------|---------------------------|
+| Proof of submission     | `MeasureReport.identifier`                                | (send id)                 |
+| Reporter type           | `MeasureReport.reporter.type`                            | `DEQM_REPORTER_TYPE`      |
+| Submission method       | ext `.../deqm-submission-method`                         | `DEQM_SUBMISSION_METHOD`  |
+| Reporting role          | ext `.../deqm-reporting-role`                            | `DEQM_REPORTING_ROLE`     |
+| Decimal numerator/denom | population ext `.../deqm-population-count-decimal`        | (auto when non-integral)  |
+| QCDR performanceNotMet  | group ext `.../deqm-performance-not-met`                 | (auto when denominator>0) |
+| Denominator exception   | population code `denominator-exception`                  | (from rollup)             |
+| CAHPS/ACR survey result | group ext `.../deqm-survey-result`                      | (from rollup)             |
+
+Per-send overrides are accepted in the `measure-reports` request body
+(`submissionMethod`, `reportingRole`, `reporterType`). On ingest, the receiver
+captures the metadata and returns a **receipt identifier**. See
+[`openapi/qpp-submission-metadata.openapi.yaml`](openapi/qpp-submission-metadata.openapi.yaml).
+
 ### 1.5) CMS Quality Measure starting set (shared)
 
 | Category | Measure |

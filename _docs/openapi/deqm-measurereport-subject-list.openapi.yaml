@@ -1,0 +1,351 @@
+openapi: 3.0.3
+info:
+  title: DEQM Subject List MeasureReport Profile
+  version: 1.0.0
+  description: |
+    OpenAPI contract for the DEQM Subject List MeasureReport profile (Da Vinci DEQM 1.0.0).
+
+    Profile: https://build.fhir.org/ig/HL7/davinci-deqm/en/StructureDefinition-deqm-subjectlistmeasurereport.html
+
+    **Fixed constraints:**
+    - `type` = `subject-list`
+    - `subject` = `0..1` Reference(Group) — references the cohort Group resource
+    - `group` = `1..*` — each group carries `population.subjectResults` referencing the per-subject individual reports
+    - Mandatory: `status`, `type`, `measure`, `reporter`, `date`, `period.start`, `period.end`
+    - `deqm-0`: `measure` must include a version suffix (`|{version}`)
+    - `deqm-1`: `period.start` and `period.end` must have day precision (`YYYY-MM-DD`)
+
+    QRDA analog: Category II (patient list)
+servers:
+  - url: https://dq-frontend.eastus2.cloudapp.azure.com
+    description: Submitters AKS ingress
+  - url: https://dq-receivers-frontend.eastus2.cloudapp.azure.com
+    description: Receivers AKS ingress
+security:
+  - bearerAuth: []
+paths:
+  /fhir/Measure/{measureId}/$evaluate-measure:
+    get:
+      summary: Evaluate a measure and return a Subject List MeasureReport
+      operationId: evaluateMeasureSubjectList
+      tags:
+        - deqm-subject-list
+      parameters:
+        - $ref: '#/components/parameters/measureId'
+        - $ref: '#/components/parameters/subject'
+        - $ref: '#/components/parameters/periodStart'
+        - $ref: '#/components/parameters/periodEnd'
+        - $ref: '#/components/parameters/engine'
+        - name: reportType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [subject-list]
+      responses:
+        '200':
+          description: Subject List MeasureReport with contained individual reports.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: '#/components/schemas/SubjectListMeasureReport'
+              examples:
+                cms165SubjectList:
+                  $ref: '#/components/examples/CMS165SubjectListReport'
+        '400':
+          $ref: '#/components/responses/OperationOutcome400'
+        '404':
+          $ref: '#/components/responses/OperationOutcome404'
+  /api/workbench/cohorts/{cohortId}/measure-reports:
+    post:
+      summary: Build and dispatch a Subject List MeasureReport for a cohort
+      operationId: sendCohortMeasureReportSubjectList
+      tags:
+        - deqm-subject-list
+      parameters:
+        - $ref: '#/components/parameters/cohortId'
+        - name: reportType
+          in: query
+          schema:
+            type: string
+            enum: [subject-list]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CohortMeasureReportRequest'
+      responses:
+        '200':
+          description: Dispatch audit record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeasureReportSendResponse'
+        '400':
+          $ref: '#/components/responses/OperationOutcome400'
+        '404':
+          description: Cohort or agency not found.
+        '409':
+          description: No measurement history available for the cohort.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    measureId:
+      name: measureId
+      in: path
+      required: true
+      schema:
+        type: string
+    subject:
+      name: subject
+      in: query
+      schema:
+        type: string
+    periodStart:
+      name: periodStart
+      in: query
+      schema:
+        type: string
+        format: date
+    periodEnd:
+      name: periodEnd
+      in: query
+      schema:
+        type: string
+        format: date
+    engine:
+      name: engine
+      in: query
+      schema:
+        type: string
+        enum: [native-cql, ai-cql]
+    cohortId:
+      name: cohortId
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    FHIRReference:
+      type: object
+      properties:
+        reference:
+          type: string
+        display:
+          type: string
+    MeasurePopulation:
+      type: object
+      required: [code, count]
+      properties:
+        code:
+          type: object
+          properties:
+            coding:
+              type: array
+              items:
+                type: object
+                properties:
+                  system:
+                    type: string
+                  code:
+                    type: string
+                    enum: [initial-population, denominator, numerator, denominator-exclusion]
+        count:
+          type: integer
+          minimum: 0
+        subjectResults:
+          $ref: '#/components/schemas/FHIRReference'
+          description: Reference to a contained individual MeasureReport
+    SubjectListMeasureReport:
+      type: object
+      required: [resourceType, status, type, measure, reporter, date, period, group]
+      properties:
+        resourceType:
+          type: string
+          enum: [MeasureReport]
+        id:
+          type: string
+        status:
+          type: string
+          enum: [complete, pending, error]
+        type:
+          type: string
+          enum: [subject-list]
+        measure:
+          type: string
+          description: 'Canonical URL with version, e.g. .../Measure/CMS165v9|9.0.000'
+        subject:
+          $ref: '#/components/schemas/FHIRReference'
+          description: 'Reference to a Group resource (contained or external)'
+        reporter:
+          $ref: '#/components/schemas/FHIRReference'
+        date:
+          type: string
+          format: date-time
+        period:
+          type: object
+          required: [start, end]
+          properties:
+            start:
+              type: string
+              format: date
+            end:
+              type: string
+              format: date
+        group:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            properties:
+              population:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MeasurePopulation'
+        contained:
+          type: array
+          description: Contained Group and per-subject Individual MeasureReport resources
+          items:
+            type: object
+    CohortMeasureReportRequest:
+      type: object
+      required: [agencyId]
+      properties:
+        agencyId:
+          type: string
+        programId:
+          type: string
+          nullable: true
+        measureIds:
+          type: array
+          items:
+            type: string
+        periodStart:
+          type: string
+          format: date
+          nullable: true
+        periodEnd:
+          type: string
+          format: date
+          nullable: true
+        reportType:
+          type: string
+          enum: [individual, subject-list, summary]
+          nullable: true
+        note:
+          type: string
+          default: ''
+        engine:
+          type: string
+          nullable: true
+        sourceSubmissionId:
+          type: string
+          nullable: true
+    MeasureReportSendResponse:
+      type: object
+      properties:
+        send:
+          type: object
+          properties:
+            id:
+              type: string
+            cohortId:
+              type: string
+            reportType:
+              type: string
+            status:
+              type: string
+              enum: [sent, partial, failed, skipped]
+            dispatch:
+              type: object
+        reportType:
+          type: string
+    OperationOutcome:
+      type: object
+      required: [resourceType, issue]
+      properties:
+        resourceType:
+          type: string
+          enum: [OperationOutcome]
+        issue:
+          type: array
+          items:
+            type: object
+  responses:
+    OperationOutcome400:
+      description: Validation error.
+      content:
+        application/fhir+json:
+          schema:
+            $ref: '#/components/schemas/OperationOutcome'
+    OperationOutcome404:
+      description: Resource not found.
+      content:
+        application/fhir+json:
+          schema:
+            $ref: '#/components/schemas/OperationOutcome'
+  examples:
+    CMS165SubjectListReport:
+      summary: CMS165v9 Subject List MeasureReport for a 2-patient cohort
+      value:
+        resourceType: MeasureReport
+        id: report-sl-001
+        status: complete
+        type: subject-list
+        measure: 'https://example.org/Measure/CMS165v9|9.0.000'
+        subject:
+          reference: '#group-cohort-diabetes'
+        reporter:
+          reference: Organization/submitters-org
+          display: My Health System
+        date: '2025-12-31T23:59:59Z'
+        period:
+          start: '2025-01-01'
+          end: '2025-12-31'
+        group:
+          - population:
+              - code:
+                  coding:
+                    - system: 'http://terminology.hl7.org/CodeSystem/measure-population'
+                      code: initial-population
+                count: 2
+                subjectResults:
+                  reference: '#indiv-cohort-diabetes-P001-CMS165v9'
+              - code:
+                  coding:
+                    - system: 'http://terminology.hl7.org/CodeSystem/measure-population'
+                      code: denominator
+                count: 2
+                subjectResults:
+                  reference: '#indiv-cohort-diabetes-P001-CMS165v9'
+              - code:
+                  coding:
+                    - system: 'http://terminology.hl7.org/CodeSystem/measure-population'
+                      code: numerator
+                count: 1
+                subjectResults:
+                  reference: '#indiv-cohort-diabetes-P001-CMS165v9'
+        contained:
+          - resourceType: Group
+            id: group-cohort-diabetes
+            type: person
+            actual: true
+            quantity: 2
+          - resourceType: MeasureReport
+            id: indiv-cohort-diabetes-P001-CMS165v9
+            status: complete
+            type: individual
+            measure: 'https://example.org/Measure/CMS165v9|9.0.000'
+            subject:
+              reference: Patient/P001
+            reporter:
+              reference: Organization/submitters-org
+            date: '2025-12-31T23:59:59Z'
+            period:
+              start: '2025-01-01'
+              end: '2025-12-31'

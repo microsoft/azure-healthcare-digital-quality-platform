@@ -15,6 +15,7 @@ MVP measures appear without requiring a manual import step.
 from __future__ import annotations
 
 import json
+import re
 import time
 from copy import deepcopy
 from pathlib import Path
@@ -27,7 +28,67 @@ import measure_catalog
 
 
 # ---------------------------------------------------------------------------
-# Default seed data
+# DEQM validation helpers (module-level so they can be unit-tested directly)
+# ---------------------------------------------------------------------------
+
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}")
+_VALID_REPORT_TYPES = {"individual", "subject-list", "summary"}
+
+# Map MeasureReport.type to the Cosmos docType used for persistence.
+_REPORT_TYPE_TO_DOC_TYPE: Dict[str, str] = {
+    "individual": "measure_report",
+    "subject-list": "measure_report_subjectlist",
+    "summary": "measure_report_summary",
+}
+
+
+def validate_deqm_measure_report(report: Dict[str, Any]) -> Optional[str]:
+    """Validate DEQM mandatory elements.
+
+    Returns a human-readable error string, or ``None`` when the report is valid.
+
+    Checks:
+    - Required fields: status, type, measure, date, reporter, period
+    - type must be one of individual, subject-list, summary
+    - deqm-0: measure must include a version (pipe separator)
+    - deqm-1: period.start and period.end must have day precision (YYYY-MM-DD)
+    """
+    if not isinstance(report, dict):
+        return "body must be a FHIR MeasureReport JSON object"
+
+    for field in ("status", "type", "measure", "date", "reporter", "period"):
+        if field not in report:
+            return f"Missing required field: {field}"
+
+    report_type = report.get("type")
+    if report_type not in _VALID_REPORT_TYPES:
+        return (
+            f"Invalid MeasureReport.type: {report_type!r}. "
+            f"Must be one of: {', '.join(sorted(_VALID_REPORT_TYPES))}"
+        )
+
+    # deqm-0: measure must include version via pipe separator
+    measure = str(report.get("measure") or "")
+    if "|" not in measure:
+        return (
+            f"deqm-0 violation: measure must include a version suffix "
+            f"(e.g. .../Measure/CMS165v9|9.0.000), got: {measure!r}"
+        )
+
+    # deqm-1: period must have start and end with at least YYYY-MM-DD precision
+    period = report.get("period") or {}
+    start = str(period.get("start") or "")
+    end = str(period.get("end") or "")
+    if not _DATE_RE.match(start):
+        return (
+            f"deqm-1 violation: period.start must have day precision (YYYY-MM-DD), got: {start!r}"
+        )
+    if not _DATE_RE.match(end):
+        return (
+            f"deqm-1 violation: period.end must have day precision (YYYY-MM-DD), got: {end!r}"
+        )
+
+    return None
 # ---------------------------------------------------------------------------
 
 # Initial tag list used to back-fill the catalog the first time the workbench
@@ -246,6 +307,22 @@ def _slug(value: str) -> str:
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
+
+
+def _extract_measure_id(canonical: str) -> str:
+    """Extract the measure id from a canonical URL like ``.../Measure/CMS165v9|9.0.000``.
+
+    Returns an empty string for empty/malformed input rather than raising.
+    """
+    if not canonical:
+        return ""
+    # Strip version suffix
+    canonical = canonical.split("|")[0].rstrip("/")
+    if not canonical:
+        return ""
+    # Return the last path segment
+    parts = canonical.rsplit("/", 1)
+    return parts[-1] if parts[-1] else ""
 
 
 def _builtin_measure_meta(measure_id: str, entry: Dict[str, Any]) -> Dict[str, Any]:
@@ -867,6 +944,7 @@ def create_workbench_router(
 
     # ----------------------------------------------------------------------
     # Measure summaries (cohort num/denom roll-ups received from submitters)
+    # DEPRECATED: use /measure-reports instead. Kept for back-compat.
     # ----------------------------------------------------------------------
 
     @router.post("/measure-summaries")
@@ -904,5 +982,105 @@ def create_workbench_router(
         if not doc:
             raise HTTPException(status_code=404, detail=f"measure_summary not found: {summary_id}")
         return {"summary": doc}
+
+    # ----------------------------------------------------------------------
+    # DEQM MeasureReport ingest (replaces measure-summaries for FHIR exchange)
+    # ----------------------------------------------------------------------
+
+    @router.post("/measure-reports")
+    async def receive_measure_report(
+        body: Dict[str, Any] = Body(...),
+        _user: Dict[str, Any] = Depends(auth_dependency),
+    ):
+        """Accept a DEQM MeasureReport or a Bundle of MeasureReports.
+
+        Validates mandatory DEQM elements (deqm-0 and deqm-1) and persists
+        each report under a ``docType`` derived from ``MeasureReport.type``.
+        Returns an ``OperationOutcome`` 400 on validation failure.
+        """
+        if not isinstance(body, dict):
+            raise HTTPException(status_code=400, detail="Request body must be a JSON object")
+
+        resource_type = body.get("resourceType")
+
+        def _operation_outcome_400(msg: str) -> None:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "resourceType": "OperationOutcome",
+                    "issue": [{"severity": "error", "code": "invalid", "diagnostics": msg}],
+                },
+            )
+
+        def _persist_one(report: Dict[str, Any]) -> Dict[str, Any]:
+            err = validate_deqm_measure_report(report)
+            if err:
+                _operation_outcome_400(err)
+            report_type = report["type"]
+            doc_type = _REPORT_TYPE_TO_DOC_TYPE.get(report_type, "measure_report")
+            report_id = report.get("id") or f"mr-{_now_ms()}"
+            # Build a small index header alongside the raw FHIR resource so the
+            # workbench can list reports without parsing every resource.
+            doc: Dict[str, Any] = {
+                "id": report_id,
+                "docType": doc_type,
+                "reportType": report_type,
+                "measureIds": [_extract_measure_id(report.get("measure") or "")],
+                "periodStart": (report.get("period") or {}).get("start"),
+                "periodEnd": (report.get("period") or {}).get("end"),
+                "receivedAt": _now_ms(),
+                "resource": report,
+            }
+            try:
+                cohorts_helper.upsert_doc(doc_type, report_id, doc)
+            except Exception as e:  # noqa: BLE001
+                raise HTTPException(status_code=500, detail=str(e))
+            return doc
+
+        if resource_type == "Bundle":
+            persisted = []
+            for entry in body.get("entry") or []:
+                res = entry.get("resource") if isinstance(entry, dict) else None
+                if isinstance(res, dict) and res.get("resourceType") == "MeasureReport":
+                    persisted.append(_persist_one(res))
+            return {"reports": persisted, "count": len(persisted)}
+
+        if resource_type == "MeasureReport":
+            doc = _persist_one(body)
+            return {"report": doc}
+
+        _operation_outcome_400(
+            f"Unsupported resourceType: {resource_type!r}. "
+            "Expected MeasureReport or Bundle."
+        )
+
+    @router.get("/measure-reports")
+    async def list_measure_reports(
+        reportType: Optional[str] = None,
+        _user: Dict[str, Any] = Depends(auth_dependency),
+    ):
+        """List persisted DEQM MeasureReports.  Pass ``reportType`` to filter by profile."""
+        try:
+            doc_types = list(_REPORT_TYPE_TO_DOC_TYPE.values())
+            rows: List[Dict[str, Any]] = []
+            for dt in doc_types:
+                rows.extend(cohorts_helper.list_docs(dt) or [])
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(status_code=503, detail=str(e))
+        if reportType:
+            rows = [r for r in rows if r.get("reportType") == reportType]
+        rows.sort(key=lambda r: r.get("receivedAt", 0), reverse=True)
+        return {"reports": rows, "count": len(rows)}
+
+    @router.get("/measure-reports/{report_id}")
+    async def get_measure_report(
+        report_id: str,
+        _user: Dict[str, Any] = Depends(auth_dependency),
+    ):
+        for doc_type in _REPORT_TYPE_TO_DOC_TYPE.values():
+            doc = cohorts_helper.get_doc(doc_type, report_id)
+            if doc:
+                return {"report": doc}
+        raise HTTPException(status_code=404, detail=f"MeasureReport not found: {report_id}")
 
     return router

@@ -357,3 +357,48 @@ export async function listMeasureSummaries(): Promise<MeasureSummary[]> {
   const data = await api<{ summaries: MeasureSummary[] }>("/measure-summaries");
   return data.summaries || [];
 }
+
+// ---------------------------------------------------------------------------
+// DEQM MeasureReports (FHIR) received from the submitters stack via
+// POST /api/workbench/measure-reports. Each doc wraps the raw FHIR resource
+// plus an index header (reportType / measureIds / period).
+// ---------------------------------------------------------------------------
+
+export type DeqmReportType = "individual" | "subject-list" | "summary";
+
+export interface FhirMeasureReportResource {
+  resourceType?: string;
+  id?: string;
+  status?: string;
+  type?: string;
+  measure?: string;
+  subject?: { reference?: string; display?: string };
+  reporter?: { reference?: string; display?: string };
+  date?: string;
+  period?: { start?: string; end?: string };
+  group?: Array<{
+    population?: Array<{
+      code?: { coding?: Array<{ system?: string; code?: string }> };
+      count?: number;
+    }>;
+  }>;
+}
+
+export interface DeqmMeasureReportDoc {
+  id: string;
+  docType?: string;
+  reportType: DeqmReportType | string;
+  measureIds?: string[];
+  periodStart?: string;
+  periodEnd?: string;
+  receivedAt?: number;
+  resource: FhirMeasureReportResource;
+}
+
+export async function listMeasureReports(
+  reportType?: DeqmReportType,
+): Promise<DeqmMeasureReportDoc[]> {
+  const qs = reportType ? `?reportType=${encodeURIComponent(reportType)}` : "";
+  const data = await api<{ reports: DeqmMeasureReportDoc[] }>(`/measure-reports${qs}`);
+  return data.reports || [];
+}

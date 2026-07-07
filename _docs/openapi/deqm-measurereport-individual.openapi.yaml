@@ -1,0 +1,252 @@
+openapi: 3.0.3
+info:
+  title: DEQM Individual MeasureReport Profile
+  version: 1.0.0
+  description: |
+    OpenAPI contract for the DEQM Individual MeasureReport profile (Da Vinci DEQM 1.0.0).
+
+    Profile: https://build.fhir.org/ig/HL7/davinci-deqm/en/StructureDefinition-deqm-individualmeasurereport.html
+
+    **Fixed constraints:**
+    - `type` = `individual`
+    - `subject` = `1..1` Reference(Patient) — one report per subject
+    - Mandatory: `status`, `type`, `measure`, `reporter`, `date`, `period.start`, `period.end`
+    - `deqm-0`: `measure` must include a version suffix (`|{version}`)
+    - `deqm-1`: `period.start` and `period.end` must have day precision (`YYYY-MM-DD`)
+
+    QRDA analog: Category I (per-patient evidence)
+servers:
+  - url: https://dq-frontend.eastus2.cloudapp.azure.com
+    description: Submitters AKS ingress
+  - url: https://dq-receivers-frontend.eastus2.cloudapp.azure.com
+    description: Receivers AKS ingress
+security:
+  - bearerAuth: []
+paths:
+  /fhir/Measure/{measureId}/$evaluate-measure:
+    get:
+      summary: Evaluate a measure and return an Individual MeasureReport
+      operationId: evaluateMeasureIndividual
+      tags:
+        - deqm-individual
+      parameters:
+        - $ref: '#/components/parameters/measureId'
+        - $ref: '#/components/parameters/subject'
+        - $ref: '#/components/parameters/periodStart'
+        - $ref: '#/components/parameters/periodEnd'
+        - $ref: '#/components/parameters/engine'
+        - name: reportType
+          in: query
+          description: Profile to emit — must be `individual` for this operation.
+          schema:
+            type: string
+            enum: [individual]
+            default: individual
+      responses:
+        '200':
+          description: Individual MeasureReport for the requested subject.
+          content:
+            application/fhir+json:
+              schema:
+                $ref: '#/components/schemas/IndividualMeasureReport'
+              examples:
+                cms165Individual:
+                  $ref: '#/components/examples/CMS165IndividualReport'
+        '400':
+          $ref: '#/components/responses/OperationOutcome400'
+        '404':
+          $ref: '#/components/responses/OperationOutcome404'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    measureId:
+      name: measureId
+      in: path
+      required: true
+      schema:
+        type: string
+      example: CMS165v9
+    subject:
+      name: subject
+      in: query
+      required: true
+      schema:
+        type: string
+      description: Patient identifier (bare id or `Patient/{id}`)
+      example: P001
+    periodStart:
+      name: periodStart
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+      example: '2025-01-01'
+    periodEnd:
+      name: periodEnd
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+      example: '2025-12-31'
+    engine:
+      name: engine
+      in: query
+      schema:
+        type: string
+        enum: [native-cql, ai-cql]
+      description: Evaluation engine. Defaults to `native-cql`.
+  schemas:
+    MeasurePopulation:
+      type: object
+      required: [code, count]
+      properties:
+        code:
+          type: object
+          properties:
+            coding:
+              type: array
+              items:
+                type: object
+                properties:
+                  system:
+                    type: string
+                    example: 'http://terminology.hl7.org/CodeSystem/measure-population'
+                  code:
+                    type: string
+                    enum: [initial-population, denominator, numerator, denominator-exclusion]
+        count:
+          type: integer
+          minimum: 0
+        subjectResults:
+          type: object
+          description: Reference to List of subject MeasureReports (subject-list profile only)
+          properties:
+            reference:
+              type: string
+    FHIRReference:
+      type: object
+      properties:
+        reference:
+          type: string
+        display:
+          type: string
+    IndividualMeasureReport:
+      type: object
+      required: [resourceType, status, type, measure, subject, reporter, date, period]
+      properties:
+        resourceType:
+          type: string
+          enum: [MeasureReport]
+        id:
+          type: string
+        status:
+          type: string
+          enum: [complete, pending, error]
+        type:
+          type: string
+          enum: [individual]
+        measure:
+          type: string
+          description: 'Canonical URL with version, e.g. .../Measure/CMS165v9|9.0.000'
+          example: 'https://example.org/Measure/CMS165v9|9.0.000'
+        subject:
+          $ref: '#/components/schemas/FHIRReference'
+          description: 'Reference to the Patient (1..1 for individual profile)'
+        reporter:
+          $ref: '#/components/schemas/FHIRReference'
+        date:
+          type: string
+          format: date-time
+        period:
+          type: object
+          required: [start, end]
+          properties:
+            start:
+              type: string
+              format: date
+            end:
+              type: string
+              format: date
+        group:
+          type: array
+          items:
+            type: object
+            properties:
+              population:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MeasurePopulation'
+    OperationOutcome:
+      type: object
+      required: [resourceType, issue]
+      properties:
+        resourceType:
+          type: string
+          enum: [OperationOutcome]
+        issue:
+          type: array
+          items:
+            type: object
+            required: [severity, code]
+            properties:
+              severity:
+                type: string
+                enum: [fatal, error, warning, information]
+              code:
+                type: string
+              diagnostics:
+                type: string
+  responses:
+    OperationOutcome400:
+      description: Validation error — invalid reportType, missing required fields, or DEQM conformance violation.
+      content:
+        application/fhir+json:
+          schema:
+            $ref: '#/components/schemas/OperationOutcome'
+    OperationOutcome404:
+      description: Measure or subject not found.
+      content:
+        application/fhir+json:
+          schema:
+            $ref: '#/components/schemas/OperationOutcome'
+  examples:
+    CMS165IndividualReport:
+      summary: CMS165v9 Individual MeasureReport for patient P001
+      value:
+        resourceType: MeasureReport
+        id: report-abc123
+        status: complete
+        type: individual
+        measure: 'https://example.org/Measure/CMS165v9|9.0.000'
+        subject:
+          reference: Patient/P001
+        reporter:
+          reference: Organization/submitters-org
+          display: My Health System
+        date: '2025-12-31T23:59:59Z'
+        period:
+          start: '2025-01-01'
+          end: '2025-12-31'
+        group:
+          - population:
+              - code:
+                  coding:
+                    - system: 'http://terminology.hl7.org/CodeSystem/measure-population'
+                      code: initial-population
+                count: 1
+              - code:
+                  coding:
+                    - system: 'http://terminology.hl7.org/CodeSystem/measure-population'
+                      code: denominator
+                count: 1
+              - code:
+                  coding:
+                    - system: 'http://terminology.hl7.org/CodeSystem/measure-population'
+                      code: numerator
+                count: 1

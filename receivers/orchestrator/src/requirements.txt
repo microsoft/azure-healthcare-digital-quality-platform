@@ -35,7 +35,7 @@ python-dotenv>=1.0.0
 requests>=2.31.0
 
 # CQL → ELM front end (pure-Python, no Java) used by the native CQL executor
-ms-cql-sdk>=0.4.2
+ms-cql-sdk>=0.4.3
 
 # Native RL / reward-shaping SDK (installed from PyPI; published from microsoft/azure-agents-learning-sdk)
 azure-agents-learning-sdk>=0.2.0

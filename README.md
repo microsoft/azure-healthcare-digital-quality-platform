@@ -388,6 +388,118 @@ Sign in to the frontend, open the browser devtools, copy the access token from t
 
 If `roles` is missing, the user has not been assigned in the Enterprise Application (step 4). If sign-in itself fails with `AADSTS50011` (reply URL mismatch), the frontend host is not in the SPA Redirect URIs list (step 2).
 
+### Submitter → Receiver API Authentication (OAuth 2.0 Client Credentials)
+
+The steps above secure the **user-facing** frontends. Machine-to-machine calls
+where a **Submitter** pushes DEQM `MeasureReport`s to a **Receiver** are secured
+separately with the **OAuth 2.0 client-credentials flow**: the Submitter is a
+daemon (no user present), so it authenticates as an application, obtains an
+access token from Microsoft Entra ID, and presents it as a bearer token. The
+Receiver validates the token's signature, issuer, audience, expiry, tenant, and
+application role before accepting the submission.
+
+```text
+Submitter ──1. client id + secret/cert──▶ Microsoft Entra ID
+Submitter ◀──────2. access token───────── Microsoft Entra ID
+Submitter ──3. POST + Bearer token──▶ Receiver API (FastAPI)
+                                      └─ 4. validate iss / aud / exp / tenant / role
+```
+
+Implementation: [`receivers/backend/src/auth_middleware.py`](receivers/backend/src/auth_middleware.py) and the `require_role` factory in [`receivers/backend/src/main.py`](receivers/backend/src/main.py) (validation + authorization), and [`submitters/backend/src/receiver_auth.py`](submitters/backend/src/receiver_auth.py) (outbound token). See [_docs/SPECIFICATION.md](_docs/SPECIFICATION.md) §B.6.1 for the full spec.
+
+#### 1. Register the Receiver API
+
+1. **Microsoft Entra ID > App registrations > New registration**. Name it
+   `dq-receiver-api`, choose **Accounts in this organizational directory only**
+   (single-tenant) or **... any organizational directory** (multi-tenant), and
+   **Register**. Copy the **Application (client) ID** and **Directory (tenant) ID**.
+2. Open **Expose an API > Add** and accept the default Application ID URI
+   `api://<receiver-client-id>` (or set a friendly one such as
+   `api://dq-receiver-api`). This value is `RECEIVER_APP_ID_URI`.
+3. Open **App roles > Create app role** and add the three roles the Receiver
+   enforces, each with **Allowed member types = Applications**:
+
+   | Display name | Value | Gates |
+   |---|---|---|
+   | `Receiver.Submit` | `Receiver.Submit` | `POST /api/workbench/measure-reports`, `POST /api/workbench/measure-summaries` |
+   | `Receiver.Read` | `Receiver.Read` | `GET` measure reports / summaries |
+   | `Receiver.Admin` | `Receiver.Admin` | Submit + Read (administrative) |
+
+#### 2. Register the Submitter client
+
+1. Create a second App Registration `dq-submitter-client`. Copy its
+   **client ID**.
+2. Under **Certificates & secrets**, create a **client secret** (or upload a
+   certificate — preferred for production). For AKS, prefer the workload
+   identity already assigned to `mcp-agent-sa` and skip the secret entirely.
+3. Under **API permissions > Add a permission > My APIs**, select
+   `dq-receiver-api`, choose **Application permissions**, check
+   `Receiver.Submit`, and **Add**. Then click **Grant admin consent** — this
+   assigns the app role to the Submitter's service principal so its tokens carry
+   `roles: ["Receiver.Submit"]`.
+
+> **Single-tenant / localhost shortcut.** You can use **one** App Registration as
+> both client and resource ("the app calls itself"): expose the API and define
+> the roles on it (step 1), then under **API permissions** grant that same app
+> the `Receiver.Submit` application permission on itself and admin-consent it.
+> Point both stacks at that one client ID / App ID URI.
+
+#### 3. Configure environment variables
+
+The two stacks need **different** variable sets — the Submitter mints tokens, the
+Receiver only validates them. Set these in `<stack>/backend/.env` (local) or the
+k8s secret/ConfigMap (cluster).
+
+**Submitter** (`submitters/backend/.env`) — outbound:
+
+```bash
+ENTRA_TENANT_ID=<tenant-that-issues-the-token>
+ENTRA_CLIENT_ID=<dq-submitter-client-id>
+ENTRA_CLIENT_SECRET=<client-secret>            # omit to use managed/workload identity
+ENTRA_CLIENT_CERTIFICATE_PATH=                 # optional cert instead of a secret
+RECEIVER_APP_ID_URI=api://dq-receiver-api      # scope sent is <uri>/.default
+RECEIVER_OAUTH_SCOPE=                           # optional explicit scope override
+RECEIVERS_BACKEND_BASE_URL=https://<receiver-host>   # where to POST
+```
+
+**Receiver** (`receivers/backend/.env`) — inbound validation:
+
+```bash
+ENTRA_TENANT_ID=<receiver-tenant-id>
+ENTRA_CLIENT_ID=<dq-receiver-api-client-id>
+RECEIVER_APP_ID_URI=api://dq-receiver-api      # accepted token audience
+ALLOWED_TENANTS=                                # empty = home tenant only
+REQUIRED_ROLE=Receiver.Submit
+```
+
+`ENTRA_TENANT_ID` / `ENTRA_CLIENT_ID` fall back to `AZURE_TENANT_ID` /
+`AZURE_CLIENT_ID` when unset.
+
+#### 4. Multi-tenant (cross-tenant) receivers
+
+For "Customer A Submitter → Customer B Receiver", register `dq-receiver-api` as
+**multi-tenant**, have the Submitter tenant admin-consent it
+(`https://login.microsoftonline.com/<submitter-tenant>/adminconsent?client_id=<receiver-client-id>`),
+and list every trusted Submitter tenant ID in the Receiver's `ALLOWED_TENANTS`
+(comma-separated), or set `ALLOWED_TENANTS=*` to accept any consented tenant.
+Leave it empty for single-tenant deployments (home tenant only).
+
+#### 5. Local development
+
+`DEVELOPMENT_MODE=true` on the Receiver bypasses both token validation and role
+checks, and the Submitter attaches a token only when `RECEIVER_APP_ID_URI`
+(or `RECEIVER_OAUTH_SCOPE`) is set — so you can run the full submit flow locally
+with no Entra config. To exercise real token validation locally, set
+`DEVELOPMENT_MODE=false` on the Receiver and use the single-app shortcut above.
+
+#### 6. Verify
+
+- Swagger: with `ENTRA_TENANT_ID` + `RECEIVER_APP_ID_URI` set, the Receiver's
+  `/docs` shows an **Authorize** button (`OAuth2Entra` scheme).
+- A submission with a valid `Receiver.Submit` token returns `200`; a missing or
+  invalid token returns `401`; a valid token lacking the role returns `403`.
+- Run the test suite: `pytest _tests/test_oauth_submitter_receiver.py -q`.
+
 ### Per-Service Build & Deploy
 
 Each app folder has its own Dockerfile and Kubernetes manifest. The backend and orchestrator Dockerfiles `COPY` from `<stack>/<svc>/...`, `_data/`, and `_measures/`, so the build context must be the repo root. Build and roll images independently. The example below uses the Submitters stack; substitute `consumers/`, `providers/`, `receivers/`, or `platform/` for any other stack (and skip the orchestrator block for the stacks that do not ship one):

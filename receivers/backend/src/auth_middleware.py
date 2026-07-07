@@ -50,12 +50,37 @@ class AzureADTokenValidator:
         if self._initialized:
             return
             
-        self.tenant_id = os.getenv("AZURE_TENANT_ID", "16b3c013-d300-468d-ac64-7eda0820b6d3")
-        self.client_id = os.getenv("AZURE_CLIENT_ID", "6441e54f-8149-487b-aac4-3a55a049a362")
-        
+        # Prefer the OAuth-specific ENTRA_* variables (issue #16) but keep the
+        # legacy AZURE_* names working for the existing frontend/user flows.
+        self.tenant_id = (
+            os.getenv("ENTRA_TENANT_ID")
+            or os.getenv("AZURE_TENANT_ID", "16b3c013-d300-468d-ac64-7eda0820b6d3")
+        )
+        self.client_id = (
+            os.getenv("ENTRA_CLIENT_ID")
+            or os.getenv("AZURE_CLIENT_ID", "6441e54f-8149-487b-aac4-3a55a049a362")
+        )
+
+        # Application ID URI exposed by the Receiver App Registration, e.g.
+        # ``api://dq-receiver-api``. Tokens minted by the Submitter via the
+        # client-credentials flow carry this value in their ``aud`` claim.
+        self.receiver_app_id_uri = os.getenv("RECEIVER_APP_ID_URI", "").strip()
+
+        # Comma-separated list of tenant IDs allowed to call this Receiver.
+        # Empty => only the home tenant (self.tenant_id) is accepted. Use
+        # ``*`` to accept any tenant (cross-tenant / multi-tenant scenarios).
+        self.allowed_tenants = [
+            t.strip()
+            for t in os.getenv("ALLOWED_TENANTS", "").split(",")
+            if t.strip()
+        ]
+
+        # Default application role required for submission endpoints.
+        self.required_role = os.getenv("REQUIRED_ROLE", "Receiver.Submit").strip()
+
         # Validate required configuration
         if not self.client_id:
-            raise ValueError("AZURE_CLIENT_ID environment variable is required")
+            raise ValueError("ENTRA_CLIENT_ID (or AZURE_CLIENT_ID) environment variable is required")
         
         # Set up valid audiences
         # Accept both the app client ID and Microsoft Graph API
@@ -64,6 +89,13 @@ class AzureADTokenValidator:
             "00000003-0000-0000-c000-000000000000",  # Microsoft Graph
             f"api://{self.client_id}",  # API audience format
         ]
+        if self.receiver_app_id_uri:
+            # Accept the configured App ID URI (and its bare GUID form) so
+            # client-credentials tokens scoped to ``<uri>/.default`` validate.
+            self.valid_audiences.append(self.receiver_app_id_uri)
+            bare = self.receiver_app_id_uri.replace("api://", "", 1)
+            if bare and bare not in self.valid_audiences:
+                self.valid_audiences.append(bare)
         
         # Set up valid issuers (both v1.0 and v2.0 endpoints)
         self.valid_issuers = [
@@ -85,6 +117,9 @@ class AzureADTokenValidator:
         print(f"🔐 Azure AD Validator initialized:")
         print(f"   Tenant: {self.tenant_id}")
         print(f"   Client ID: {self.client_id}")
+        print(f"   Receiver App ID URI: {self.receiver_app_id_uri or '(not set)'}")
+        print(f"   Allowed tenants: {self.allowed_tenants or [self.tenant_id]}")
+        print(f"   Required role (default): {self.required_role}")
         print(f"   JWKS URI v1.0: {self.jwks_uri_v1}")
         print(f"   JWKS URI v2.0: {self.jwks_uri_v2}")
         print(f"   Valid audiences: {self.valid_audiences}")
@@ -319,6 +354,34 @@ class AzureADTokenValidator:
         token_iss = payload.get("iss")
         return token_iss in self.valid_issuers
     
+    def _validate_tenant(self, payload: Dict[str, Any]) -> bool:
+        """
+        Validate the token's tenant against the allow-list.
+
+        Args:
+            payload: Decoded JWT payload
+
+        Returns:
+            bool: True if the tenant is permitted to call this Receiver.
+        """
+        token_tid = payload.get("tid")
+
+        # ``*`` in ALLOWED_TENANTS opts into fully multi-tenant behaviour.
+        if "*" in self.allowed_tenants:
+            return True
+
+        # When an explicit allow-list is configured, the token tenant must be
+        # a member. This is the cross-tenant trust boundary (Customer A
+        # Submitter -> Customer B Receiver).
+        if self.allowed_tenants:
+            return token_tid in self.allowed_tenants
+
+        # No allow-list configured => single-tenant: only the home tenant is
+        # accepted. ``common``/``organizations`` disables the home-tenant pin.
+        if self.tenant_id in ("common", "organizations"):
+            return True
+        return token_tid == self.tenant_id
+    
     def validate_token(self, token: str) -> Dict[str, Any]:
         """
         Validate Azure AD JWT token
@@ -532,10 +595,21 @@ class AzureADTokenValidator:
                 )
             
             print("✓ Token audience validated successfully")
+
+            # Manual tenant validation (multi-tenant / cross-tenant trust)
+            if not self._validate_tenant(payload):
+                token_tid = payload.get("tid")
+                allowed = self.allowed_tenants or [self.tenant_id]
+                raise HTTPException(
+                    status_code=401,
+                    detail=f"Token tenant is not allowed. Expected one of {allowed}, got tid='{token_tid}'"
+                )
+
+            print("✓ Token tenant validated successfully")
             print("🎉 Token validation completed successfully")
             
             return payload
-            
+
         except jwt.ExpiredSignatureError:
             print("❌ Token has expired")
             raise HTTPException(
@@ -595,10 +669,42 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         "name": payload.get("name"),
         "tenant_id": payload.get("tid"),
         "roles": payload.get("roles", []),
+        "scp": payload.get("scp"),  # Delegated scopes (space-delimited)
         "groups": payload.get("groups", []),
         "app_id": payload.get("appid"),  # Add app ID for debugging
         "audience": payload.get("aud")   # Add audience for debugging
     }
+
+def get_user_roles(user: Dict[str, Any]) -> List[str]:
+    """
+    Extract the application roles / scopes granted to the caller.
+
+    App-only tokens (client-credentials flow) carry app roles in the ``roles``
+    claim. Delegated tokens can also carry scopes in the ``scp`` claim (a
+    space-delimited string). Both are normalised into a single list.
+    """
+    roles: List[str] = list(user.get("roles") or [])
+    scp = user.get("scp") or user.get("scope")
+    if isinstance(scp, str):
+        roles.extend(part for part in scp.split() if part)
+    return roles
+
+def user_has_role(user: Dict[str, Any], required_roles: List[str], require_all: bool = False) -> bool:
+    """
+    Return True if the caller holds the required application role(s).
+
+    Args:
+        user: User dict produced by ``get_current_user`` / ``validate_token``.
+        required_roles: Roles that satisfy the check.
+        require_all: When True, the caller must hold every listed role;
+            otherwise holding any one of them is sufficient.
+    """
+    if not required_roles:
+        return True
+    granted = set(get_user_roles(user))
+    if require_all:
+        return set(required_roles).issubset(granted)
+    return bool(granted.intersection(required_roles))
 
 # Alternative: Simple token extraction function for manual validation
 def extract_token_from_request(request: Request) -> Optional[str]:
@@ -645,6 +751,7 @@ async def get_current_user_from_request(request: Request) -> Dict[str, Any]:
         "name": payload.get("name"),
         "tenant_id": payload.get("tid"),
         "roles": payload.get("roles", []),
+        "scp": payload.get("scp"),  # Delegated scopes (space-delimited)
         "groups": payload.get("groups", []),
         "app_id": payload.get("appid"),  # Add app ID for debugging
         "audience": payload.get("aud")   # Add audience for debugging

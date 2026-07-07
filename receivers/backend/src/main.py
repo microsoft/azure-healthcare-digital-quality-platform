@@ -25,6 +25,7 @@ from prompty.core import PromptyStream, AsyncPromptyStream
 # FastAPI response types and middleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 # OpenTelemetry instrumentation for monitoring
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from fastapi import FastAPI, Body
@@ -35,7 +36,7 @@ from urllib.parse import quote_plus
 import requests
 # Custom modules for database operations
 import cosmosdb_helper
-from auth_middleware import get_current_user, get_current_user_from_request, require_auth, get_user_from_request, extract_token_from_request
+from auth_middleware import get_current_user, get_current_user_from_request, require_auth, get_user_from_request, extract_token_from_request, user_has_role
 from typing import Dict, Any, List, Optional
 
 
@@ -723,6 +724,59 @@ for var in cosmosdb_vars:
 # Initialize FastAPI application
 app = FastAPI()
 
+# ---------------------------------------------------------------------------
+# OAuth 2.0 / Entra ID Swagger UI integration (issue #16)
+# ---------------------------------------------------------------------------
+# Advertise the OAuth2 client-credentials + authorization-code flows in the
+# generated OpenAPI so the Swagger UI "Authorize" button can mint a token
+# against the Receiver App Registration. Purely documentation/UX — request
+# enforcement is done by the auth dependencies, not by this scheme.
+_ENTRA_TENANT_ID = os.getenv("ENTRA_TENANT_ID") or os.getenv("AZURE_TENANT_ID", "")
+_RECEIVER_APP_ID_URI = os.getenv("RECEIVER_APP_ID_URI", "").strip()
+if _ENTRA_TENANT_ID and _RECEIVER_APP_ID_URI:
+    _authorize_url = f"https://login.microsoftonline.com/{_ENTRA_TENANT_ID}/oauth2/v2.0/authorize"
+    _token_url = f"https://login.microsoftonline.com/{_ENTRA_TENANT_ID}/oauth2/v2.0/token"
+    _default_scope = f"{_RECEIVER_APP_ID_URI.rstrip('/')}/.default"
+
+    def custom_openapi():
+        if app.openapi_schema:
+            return app.openapi_schema
+        openapi_schema = get_openapi(
+            title="DQ Receiver API",
+            version="1.0.0",
+            description=(
+                "Receiver APIs are protected with OAuth 2.0 / Microsoft Entra ID. "
+                "Submitters authenticate via the client-credentials flow and present a "
+                "bearer token carrying one of the `Receiver.Submit`, `Receiver.Read`, or "
+                "`Receiver.Admin` application roles."
+            ),
+            routes=app.routes,
+        )
+        components = openapi_schema.setdefault("components", {})
+        components.setdefault("securitySchemes", {})["OAuth2Entra"] = {
+            "type": "oauth2",
+            "flows": {
+                "clientCredentials": {
+                    "tokenUrl": _token_url,
+                    "scopes": {_default_scope: "Access the Receiver API"},
+                },
+                "authorizationCode": {
+                    "authorizationUrl": _authorize_url,
+                    "tokenUrl": _token_url,
+                    "scopes": {_default_scope: "Access the Receiver API"},
+                },
+            },
+        }
+        app.openapi_schema = openapi_schema
+        return app.openapi_schema
+
+    app.openapi = custom_openapi
+    app.swagger_ui_init_oauth = {
+        "clientId": os.getenv("ENTRA_CLIENT_ID") or os.getenv("AZURE_CLIENT_ID", ""),
+        "scopes": _default_scope,
+        "usePkceWithAuthorizationCodeGrant": True,
+    }
+
 # Control whether we allow fallback to an in-memory/mock database
 REQUIRE_DATABASE = os.getenv("REQUIRE_DATABASE", "false").lower() in ("true", "1", "yes", "on")
 
@@ -976,6 +1030,38 @@ async def get_current_user_conditional(request: Request) -> Dict[str, Any]:
     else:
         # Production mode - require authentication
         return await get_current_user_from_request(request)
+
+# Role-based authorization dependency factory (issue #16)
+def require_role(*required_roles: str):
+    """
+    Build a FastAPI dependency that enforces an application role.
+
+    - Missing / invalid token -> 401 (raised by the underlying validator).
+    - Valid token without one of ``required_roles`` -> 403.
+    - DEVELOPMENT_MODE bypasses the role check for local testing.
+
+    Usage::
+
+        @app.post("/api/receive", dependencies=[Depends(require_role("Receiver.Submit"))])
+    """
+    roles = tuple(required_roles)
+
+    async def _dependency(request: Request) -> Dict[str, Any]:
+        user = await get_current_user_conditional(request)
+        if DEVELOPMENT_MODE:
+            # Auth (and therefore role enforcement) is bypassed in dev mode.
+            return user
+        if roles and not user_has_role(user, list(roles)):
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Insufficient permissions. This endpoint requires one of the "
+                    f"following application roles: {', '.join(roles)}"
+                ),
+            )
+        return user
+
+    return _dependency
 
 # Patient data retrieval endpoint with conditional auth
 @app.get("/api/patient/{id}")
@@ -1514,6 +1600,8 @@ try:
             catalog_helper=catalogDBHelper,
             cohorts_helper=cohortsDBHelper,
             auth_dependency=get_current_user_conditional,
+            submit_dependency=require_role("Receiver.Submit", "Receiver.Admin"),
+            read_dependency=require_role("Receiver.Read", "Receiver.Submit", "Receiver.Admin"),
             sample_data_dir=sample_data_dir,
         )
     )

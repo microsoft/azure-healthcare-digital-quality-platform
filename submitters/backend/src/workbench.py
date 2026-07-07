@@ -30,6 +30,13 @@ from pydantic import BaseModel, Field
 
 import measure_catalog
 
+try:
+    # OAuth 2.0 client-credentials headers for Submitter -> Receiver calls (issue #16).
+    from receiver_auth import get_receiver_auth_headers
+except Exception:  # noqa: BLE001 - keep workbench importable without the module
+    def get_receiver_auth_headers() -> Dict[str, str]:  # type: ignore[misc]
+        return {}
+
 
 # ---------------------------------------------------------------------------
 # Default seed data
@@ -1800,6 +1807,20 @@ def create_workbench_router(
             "generatedAt": _now_ms(),
         }
 
+    def _receiver_dispatch_headers(target: str) -> Dict[str, str]:
+        """Return outbound auth headers for a cross-stack dispatch target.
+
+        Only the Receiver stack participates in the Submitter->Receiver OAuth
+        trust (issue #16); other targets (e.g. platform) get no bearer token.
+        Failures degrade to no header so dispatch still proceeds in dev.
+        """
+        if target != "receivers":
+            return {}
+        try:
+            return get_receiver_auth_headers()
+        except Exception:  # noqa: BLE001
+            return {}
+
     def _dispatch_summary_to(name: str, base_url: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         # Allow operators to disable a downstream target by leaving its
         # *_BACKEND_BASE_URL env var blank. The send call then records a
@@ -1811,8 +1832,11 @@ def create_workbench_router(
             return {"target": name, "url": None, "status": "skipped"}
         url = cleaned.rstrip("/") + "/api/workbench/measure-summaries"
         result: Dict[str, Any] = {"target": name, "url": url, "status": "pending"}
+        # Attach an Entra ID bearer token when dispatching to the Receiver
+        # stack (issue #16). Empty when OAuth is not configured (local/dev).
+        headers = _receiver_dispatch_headers(name)
         try:
-            resp = requests.post(url, json=payload, timeout=30)
+            resp = requests.post(url, json=payload, headers=headers or None, timeout=30)
         except Exception as exc:  # noqa: BLE001
             result["status"] = "failed"
             result["error"] = str(exc)[:1000]
@@ -1839,11 +1863,14 @@ def create_workbench_router(
             return {"target": name, "url": None, "status": "skipped"}
         url = cleaned.rstrip("/") + "/api/workbench/measure-reports"
         result: Dict[str, Any] = {"target": name, "url": url, "status": "pending"}
+        # Merge the Entra ID bearer token (issue #16) with the FHIR content type.
+        headers = {"Content-Type": "application/fhir+json"}
+        headers.update(_receiver_dispatch_headers(name))
         try:
             resp = requests.post(
                 url,
                 json=fhir_payload,
-                headers={"Content-Type": "application/fhir+json"},
+                headers=headers,
                 timeout=30,
             )
         except Exception as exc:  # noqa: BLE001

@@ -1,4 +1,4 @@
 azure-ai-evaluation
 azure-ai-evaluation[remote]
 azure-agents-learning-sdk>=0.2.0
-ms-cql-sdk>=0.4.2
+ms-cql-sdk>=0.4.3

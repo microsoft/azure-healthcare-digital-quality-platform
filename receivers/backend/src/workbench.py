@@ -486,6 +486,8 @@ def create_workbench_router(
     catalog_helper: Any,
     cohorts_helper: Any,
     auth_dependency: Callable[..., Any],
+    submit_dependency: Optional[Callable[..., Any]] = None,
+    read_dependency: Optional[Callable[..., Any]] = None,
     sample_data_dir: Optional[Path] = None,
 ) -> APIRouter:
     """Build the workbench router.
@@ -493,7 +495,19 @@ def create_workbench_router(
     ``catalog_helper`` and ``cohorts_helper`` must implement the doc-type
     methods (``upsert_doc``, ``get_doc``, ``list_docs``, ``delete_doc``)
     added to :class:`cosmosdb_helper.CosmosDBHelper`.
+
+    ``auth_dependency`` gates the general workbench endpoints. The optional
+    ``submit_dependency`` / ``read_dependency`` gate the cross-stack DEQM
+    ingest endpoints with role-based authorization (issue #16):
+    submitters need ``Receiver.Submit`` to POST measure reports/summaries and
+    ``Receiver.Read`` to retrieve them. When not supplied they fall back to
+    ``auth_dependency`` so single-tenant / dev deployments keep working.
     """
+
+    # Fall back to the general auth dependency when role-scoped dependencies
+    # are not provided (keeps back-compat with callers that predate issue #16).
+    submit_dependency = submit_dependency or auth_dependency
+    read_dependency = read_dependency or auth_dependency
 
     router = APIRouter(prefix="/api/workbench", tags=["workbench"])
 
@@ -1141,7 +1155,7 @@ def create_workbench_router(
     @router.post("/measure-summaries")
     async def receive_measure_summary(
         payload: MeasureSummaryModel = Body(...),
-        _user: Dict[str, Any] = Depends(auth_dependency),
+        _user: Dict[str, Any] = Depends(submit_dependency),
     ):
         summary_id = payload.id or f"sum-{_now_ms()}"
         doc = payload.dict()
@@ -1156,7 +1170,7 @@ def create_workbench_router(
         return {"summary": doc}
 
     @router.get("/measure-summaries")
-    async def list_measure_summaries(_user: Dict[str, Any] = Depends(auth_dependency)):
+    async def list_measure_summaries(_user: Dict[str, Any] = Depends(read_dependency)):
         try:
             out = cohorts_helper.list_docs("measure_summary") or []
         except Exception as e:  # noqa: BLE001
@@ -1167,7 +1181,7 @@ def create_workbench_router(
     @router.get("/measure-summaries/{summary_id}")
     async def get_measure_summary(
         summary_id: str,
-        _user: Dict[str, Any] = Depends(auth_dependency),
+        _user: Dict[str, Any] = Depends(read_dependency),
     ):
         doc = cohorts_helper.get_doc("measure_summary", summary_id)
         if not doc:
@@ -1181,7 +1195,7 @@ def create_workbench_router(
     @router.post("/measure-reports")
     async def receive_measure_report(
         body: Dict[str, Any] = Body(...),
-        _user: Dict[str, Any] = Depends(auth_dependency),
+        _user: Dict[str, Any] = Depends(submit_dependency),
     ):
         """Accept a DEQM MeasureReport or a Bundle of MeasureReports.
 
@@ -1273,7 +1287,7 @@ def create_workbench_router(
     @router.get("/measure-reports")
     async def list_measure_reports(
         reportType: Optional[str] = None,
-        _user: Dict[str, Any] = Depends(auth_dependency),
+        _user: Dict[str, Any] = Depends(read_dependency),
     ):
         """List persisted DEQM MeasureReports.  Pass ``reportType`` to filter by profile."""
         try:
@@ -1291,7 +1305,7 @@ def create_workbench_router(
     @router.get("/measure-reports/{report_id}")
     async def get_measure_report(
         report_id: str,
-        _user: Dict[str, Any] = Depends(auth_dependency),
+        _user: Dict[str, Any] = Depends(read_dependency),
     ):
         for doc_type in _REPORT_TYPE_TO_DOC_TYPE.values():
             doc = cohorts_helper.get_doc(doc_type, report_id)

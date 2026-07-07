@@ -1,0 +1,55 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "trendSubmissions",
+  "position": {
+    "x": 24,
+    "y": 176,
+    "z": 0,
+    "height": 240,
+    "width": 584,
+    "tabOrder": 0
+  },
+  "visual": {
+    "visualType": "lineChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "SubmissionHistory"
+                    }
+                  },
+                  "Property": "ReceivedAtUtc"
+                }
+              },
+              "queryRef": "SubmissionHistory.ReceivedAtUtc",
+              "nativeQueryRef": "ReceivedAtUtc"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "SubmissionHistory"
+                    }
+                  },
+                  "Property": "Total submissions"
+                }
+              },
+              "queryRef": "SubmissionHistory.Total submissions",
+              "nativeQueryRef": "Total submissions"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

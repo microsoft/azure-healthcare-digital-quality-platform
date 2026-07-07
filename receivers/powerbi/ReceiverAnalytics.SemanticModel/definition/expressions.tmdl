@@ -1,0 +1,2 @@
+expression SqlServerName = "#{AZURE_SQL_SERVER_FQDN}" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+expression SqlDatabaseName = "#{AZURE_SQL_DATABASE_NAME}" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]

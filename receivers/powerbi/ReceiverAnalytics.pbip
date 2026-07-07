@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "artifacts": [
+    {
+      "report": {
+        "path": "ReceiverAnalytics.Report"
+      }
+    },
+    {
+      "semanticModel": {
+        "path": "ReceiverAnalytics.SemanticModel"
+      }
+    }
+  ],
+  "settings": {
+    "enableAutoRecovery": true
+  }
+}

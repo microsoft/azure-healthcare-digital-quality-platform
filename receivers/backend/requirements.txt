@@ -16,3 +16,4 @@ python-dotenv==1.0.1
 PyJWT[crypto]
 requests
 uvicorn
+pyodbc==5.2.0

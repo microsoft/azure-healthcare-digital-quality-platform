@@ -64,6 +64,24 @@
     },
     "purviewEnabled": {
       "value": "${PURVIEW_ENABLED=false}"
+    },
+    "sqlDatabaseName": {
+      "value": "${AZURE_SQL_DATABASE_NAME=dq_receiver_reporting}"
+    },
+    "sqlDatabaseSkuName": {
+      "value": "${AZURE_SQL_DATABASE_SKU_NAME=Basic}"
+    },
+    "sqlDatabaseSkuTier": {
+      "value": "${AZURE_SQL_DATABASE_SKU_TIER=Basic}"
+    },
+    "sqlEntraAdminObjectId": {
+      "value": "${AZURE_SQL_ENTRA_ADMIN_OBJECT_ID=}"
+    },
+    "sqlEntraAdminLogin": {
+      "value": "${AZURE_SQL_ENTRA_ADMIN_LOGIN=}"
+    },
+    "sqlAzureAdOnlyAuthentication": {
+      "value": "${AZURE_SQL_AAD_ONLY_AUTH=false}"
     }
   }
 }

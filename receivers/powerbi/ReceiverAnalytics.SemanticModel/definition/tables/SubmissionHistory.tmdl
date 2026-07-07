@@ -1,0 +1,40 @@
+table SubmissionHistory
+	lineageTag: submission-history
+
+	column SubmissionId
+		dataType: string
+		sourceColumn: SubmissionId
+
+	column ReceivedAtUtc
+		dataType: dateTime
+		sourceColumn: ReceivedAtUtc
+
+	column ProgramId
+		dataType: string
+		sourceColumn: ProgramId
+
+	column SubmitterId
+		dataType: string
+		sourceColumn: SubmitterId
+
+	column MeasureId
+		dataType: string
+		sourceColumn: MeasureId
+
+	column Status
+		dataType: string
+		sourceColumn: Status
+
+	column SubmissionCount
+		dataType: int64
+		sourceColumn: SubmissionCount
+
+	partition SubmissionHistory = m
+		mode: import
+		source =
+			let
+			    Source = Sql.Database(SqlServerName, SqlDatabaseName),
+			    Table = Source{[Schema="dq",Item="SubmissionHistory"]}[Data],
+			    WithCount = Table.AddColumn(Table, "SubmissionCount", each 1, Int64.Type)
+			in
+			    WithCount

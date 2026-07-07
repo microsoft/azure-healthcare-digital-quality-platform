@@ -1,0 +1,13 @@
+model ReceiverAnalytics
+	culture: en-US
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: en-US
+
+	measure 'Total submissions' = SUM('SubmissionHistory'[SubmissionCount])
+	measure 'Active submitters' = DISTINCTCOUNT('SubmissionHistory'[SubmitterId])
+	measure 'Programs onboarded' = DISTINCTCOUNT('SubmissionHistory'[ProgramId])
+	measure 'Measures processed' = DISTINCTCOUNT('SubmissionHistory'[MeasureId])
+	measure 'Processing success rate' = DIVIDE(SUM('ProcessingEvents'[SucceededCount]), SUM('ProcessingEvents'[TotalCount]))
+	measure 'Performance rate' = AVERAGE('MeasureReports'[PerformanceRate])
+
+	annotation __PBI_TimeIntelligenceEnabled = 0

@@ -1,0 +1,51 @@
+table MeasureReports
+	lineageTag: measure-reports
+
+	column MeasureReportId
+		dataType: string
+		sourceColumn: MeasureReportId
+
+	column MeasureId
+		dataType: string
+		sourceColumn: MeasureId
+
+	column SubmitterId
+		dataType: string
+		sourceColumn: SubmitterId
+
+	column ProgramId
+		dataType: string
+		sourceColumn: ProgramId
+
+	column PeriodStart
+		dataType: dateTime
+		sourceColumn: PeriodStart
+
+	column PeriodEnd
+		dataType: dateTime
+		sourceColumn: PeriodEnd
+
+	column Numerator
+		dataType: int64
+		sourceColumn: Numerator
+
+	column Denominator
+		dataType: int64
+		sourceColumn: Denominator
+
+	column Exclusions
+		dataType: int64
+		sourceColumn: Exclusions
+
+	column PerformanceRate
+		dataType: decimal
+		sourceColumn: PerformanceRate
+
+	partition MeasureReports = m
+		mode: import
+		source =
+			let
+			    Source = Sql.Database(SqlServerName, SqlDatabaseName),
+			    Table = Source{[Schema="dq",Item="MeasureReports"]}[Data]
+			in
+			    Table

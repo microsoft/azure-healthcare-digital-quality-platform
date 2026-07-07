@@ -48,6 +48,10 @@ $tenantId = Get-Env 'AZURE_TENANT_ID'
 $location = Get-Env 'AZURE_LOCATION' 'eastus2'
 $rgName = Get-Env 'AZURE_RESOURCE_GROUP_NAME'
 $apimGateway = Get-Env 'APIM_GATEWAY_URL'
+$sqlServerName = Get-Env 'AZURE_SQL_SERVER_NAME'
+$sqlDatabaseName = Get-Env 'AZURE_SQL_DATABASE_NAME'
+$sqlServerFqdn = Get-Env 'AZURE_SQL_SERVER_FQDN'
+$sqlConnectionString = Get-Env 'AZURE_SQL_CONNECTION_STRING'
 
 $cosmosHost = ''
 if ($cosmosEndpoint -match '^https?://([^:/]+)') { $cosmosHost = $matches[1] }
@@ -71,6 +75,13 @@ $backendEnvLines = @(
   "COSMOSDB_HOST=`"$cosmosHost`"",
   "COSMOS_ACCOUNT_NAME=`"$cosmosAccount`"",
   "COSMOS_ENDPOINT=`"$cosmosEndpoint`"",
+  '',
+  '# Azure SQL reporting database',
+  "AZURE_SQL_SERVER_NAME=`"$sqlServerName`"",
+  "AZURE_SQL_DATABASE_NAME=`"$sqlDatabaseName`"",
+  "AZURE_SQL_SERVER_FQDN=`"$sqlServerFqdn`"",
+  "AZURE_SQL_CONNECTION_STRING=`"$sqlConnectionString`"",
+  'RECEIVER_REPORTING_SQL_ENABLED=true',
   '',
   '# APIM (kept for parity with providers/submitters)',
   "APIM_GATEWAY_URL=`"$apimGateway`"",

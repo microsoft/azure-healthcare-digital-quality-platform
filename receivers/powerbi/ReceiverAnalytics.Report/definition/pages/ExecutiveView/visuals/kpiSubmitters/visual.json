@@ -1,0 +1,37 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "kpiSubmitters",
+  "position": {
+    "x": 328,
+    "y": 24,
+    "z": 0,
+    "height": 120,
+    "width": 280,
+    "tabOrder": 0
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "SubmissionHistory"
+                    }
+                  },
+                  "Property": "Active submitters"
+                }
+              },
+              "queryRef": "SubmissionHistory.Active submitters",
+              "nativeQueryRef": "Active submitters"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

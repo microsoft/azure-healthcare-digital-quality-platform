@@ -1,0 +1,79 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "operationsTable",
+  "position": {
+    "x": 24,
+    "y": 448,
+    "z": 0,
+    "height": 224,
+    "width": 1192,
+    "tabOrder": 0
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "ProcessingEvents"
+                    }
+                  },
+                  "Property": "CreatedAtUtc"
+                }
+              },
+              "queryRef": "ProcessingEvents.CreatedAtUtc",
+              "nativeQueryRef": "CreatedAtUtc"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "ProcessingEvents"
+                    }
+                  },
+                  "Property": "EventType"
+                }
+              },
+              "queryRef": "ProcessingEvents.EventType",
+              "nativeQueryRef": "EventType"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "ProcessingEvents"
+                    }
+                  },
+                  "Property": "Status"
+                }
+              },
+              "queryRef": "ProcessingEvents.Status",
+              "nativeQueryRef": "Status"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "ProcessingEvents"
+                    }
+                  },
+                  "Property": "ErrorMessage"
+                }
+              },
+              "queryRef": "ProcessingEvents.ErrorMessage",
+              "nativeQueryRef": "ErrorMessage"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

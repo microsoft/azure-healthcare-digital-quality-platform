@@ -27,7 +27,8 @@
                 }
               },
               "queryRef": "SubmissionHistory.ReceivedAtUtc",
-              "nativeQueryRef": "ReceivedAtUtc"
+              "nativeQueryRef": "ReceivedAtUtc",
+              "displayName": "Received"
             }
           ]
         },

@@ -27,7 +27,8 @@
                 }
               },
               "queryRef": "MeasureReports.MeasureId",
-              "nativeQueryRef": "MeasureId"
+              "nativeQueryRef": "MeasureId",
+              "displayName": "Measure"
             }
           ]
         },

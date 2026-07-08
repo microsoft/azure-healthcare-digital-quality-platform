@@ -27,7 +27,8 @@
                 }
               },
               "queryRef": "ProcessingEvents.CreatedAtUtc",
-              "nativeQueryRef": "CreatedAtUtc"
+              "nativeQueryRef": "CreatedAtUtc",
+              "displayName": "Created"
             },
             {
               "field": {
@@ -41,7 +42,8 @@
                 }
               },
               "queryRef": "ProcessingEvents.EventType",
-              "nativeQueryRef": "EventType"
+              "nativeQueryRef": "EventType",
+              "displayName": "Event Type"
             },
             {
               "field": {
@@ -69,7 +71,8 @@
                 }
               },
               "queryRef": "ProcessingEvents.ErrorMessage",
-              "nativeQueryRef": "ErrorMessage"
+              "nativeQueryRef": "ErrorMessage",
+              "displayName": "Error Message"
             }
           ]
         }

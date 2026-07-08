@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="72" viewBox="0 0 360 72">
+  <rect x="0" y="4" width="64" height="64" rx="10" fill="#0071BC"/>
+  <text x="32" y="46" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="27" font-weight="700" fill="#FFFFFF">CMS</text>
+  <text x="80" y="30" font-family="Segoe UI, Arial, sans-serif" font-size="19" font-weight="700" fill="#FFFFFF">Centers for Medicare</text>
+  <text x="80" y="55" font-family="Segoe UI, Arial, sans-serif" font-size="19" font-weight="700" fill="#FFFFFF">&amp; Medicaid Services</text>
+</svg>

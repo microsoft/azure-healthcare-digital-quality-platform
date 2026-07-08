@@ -5,11 +5,6 @@
       "report": {
         "path": "ReceiverAnalytics.Report"
       }
-    },
-    {
-      "semanticModel": {
-        "path": "ReceiverAnalytics.SemanticModel"
-      }
     }
   ],
   "settings": {

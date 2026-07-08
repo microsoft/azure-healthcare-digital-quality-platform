@@ -3,7 +3,7 @@
   "name": "ExecutiveView",
   "displayName": "Receiver Analytics",
   "displayOption": "FitToPage",
-  "height": 720,
+  "height": 800,
   "width": 1280,
   "visualInteractions": [],
   "objects": {

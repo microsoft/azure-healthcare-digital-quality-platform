@@ -1,0 +1,41 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "footerText",
+  "position": { "x": 24, "y": 770, "z": 10, "height": 24, "width": 1232, "tabOrder": 1 },
+  "visual": {
+    "visualType": "textbox",
+    "objects": {
+      "general": [
+        {
+          "properties": {
+            "paragraphs": [
+              {
+                "textRuns": [
+                  {
+                    "value": "Source: Azure SQL (dq schema). Currently displaying built-in sample data (UseSampleData = true) — set to false to connect live. CMS Digital Quality Platform · Receivers.",
+                    "textStyle": {
+                      "fontFamily": "Segoe UI",
+                      "fontSize": "10px",
+                      "color": "#5B616B"
+                    }
+                  }
+                ],
+                "horizontalTextAlignment": "left"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "visualContainerObjects": {
+      "background": [{ "properties": { "show": { "expr": { "Literal": { "Value": "false" } } } } }],
+      "border": [{ "properties": { "show": { "expr": { "Literal": { "Value": "false" } } } } }],
+      "padding": [{ "properties": {
+        "top": { "expr": { "Literal": { "Value": "0D" } } },
+        "bottom": { "expr": { "Literal": { "Value": "0D" } } },
+        "left": { "expr": { "Literal": { "Value": "0D" } } },
+        "right": { "expr": { "Literal": { "Value": "0D" } } }
+      } }]
+    }
+  }
+}

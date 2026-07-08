@@ -1,6 +1,11 @@
 table SubmissionHistory
 	lineageTag: submission-history
 
+	measure 'Total submissions' = SUM('SubmissionHistory'[RowCount])
+	measure 'Active submitters' = DISTINCTCOUNT('SubmissionHistory'[SubmitterId])
+	measure 'Programs onboarded' = DISTINCTCOUNT('SubmissionHistory'[ProgramId])
+	measure 'Measures processed' = DISTINCTCOUNT('SubmissionHistory'[MeasureId])
+
 	column SubmissionId
 		dataType: string
 		sourceColumn: SubmissionId
@@ -33,8 +38,41 @@ table SubmissionHistory
 		mode: import
 		source =
 			let
-			    Source = Sql.Database(SqlServerName, SqlDatabaseName),
-			    Table = Source{[Schema="dq",Item="SubmissionHistory"]}[Data],
-			    WithCount = Table.AddColumn(Table, "RowCount", each 1, Int64.Type)
+			    SampleData = #table(
+			        type table [
+			            SubmissionId = text,
+			            ReceivedAtUtc = datetime,
+			            ProgramId = text,
+			            SubmitterId = text,
+			            MeasureId = text,
+			            Status = text,
+			            RowCount = Int64.Type
+			        ],
+			        {
+			            {"SUB-1001", #datetime(2026, 1, 8, 9, 15, 0), "MIPS", "SUBM-ACME", "CMS122", "succeeded", 1},
+			            {"SUB-1002", #datetime(2026, 1, 15, 11, 40, 0), "MIPS", "SUBM-BAYSTATE", "CMS165", "succeeded", 1},
+			            {"SUB-1003", #datetime(2026, 2, 3, 8, 5, 0), "Medicaid", "SUBM-CITYCLINIC", "ePC02", "succeeded", 1},
+			            {"SUB-1004", #datetime(2026, 2, 12, 14, 20, 0), "MedicareAdvantage", "SUBM-NORTHWELL", "CMS122", "failed", 1},
+			            {"SUB-1005", #datetime(2026, 2, 27, 10, 0, 0), "MIPS", "SUBM-ACME", "CMS165", "succeeded", 1},
+			            {"SUB-1006", #datetime(2026, 3, 6, 9, 45, 0), "Medicaid", "SUBM-BAYSTATE", "CMS122", "succeeded", 1},
+			            {"SUB-1007", #datetime(2026, 3, 19, 13, 30, 0), "MIPS", "SUBM-CITYCLINIC", "CMS165", "pending", 1},
+			            {"SUB-1008", #datetime(2026, 3, 28, 16, 10, 0), "MedicareAdvantage", "SUBM-NORTHWELL", "ePC02", "succeeded", 1},
+			            {"SUB-1009", #datetime(2026, 4, 9, 8, 50, 0), "MIPS", "SUBM-ACME", "CMS122", "succeeded", 1},
+			            {"SUB-1010", #datetime(2026, 4, 21, 12, 15, 0), "Medicaid", "SUBM-CITYCLINIC", "CMS165", "succeeded", 1},
+			            {"SUB-1011", #datetime(2026, 5, 5, 9, 5, 0), "MIPS", "SUBM-BAYSTATE", "ePC02", "failed", 1},
+			            {"SUB-1012", #datetime(2026, 5, 18, 15, 25, 0), "MedicareAdvantage", "SUBM-NORTHWELL", "CMS122", "succeeded", 1},
+			            {"SUB-1013", #datetime(2026, 5, 29, 11, 0, 0), "MIPS", "SUBM-ACME", "CMS165", "succeeded", 1},
+			            {"SUB-1014", #datetime(2026, 6, 11, 10, 35, 0), "Medicaid", "SUBM-BAYSTATE", "CMS122", "succeeded", 1},
+			            {"SUB-1015", #datetime(2026, 6, 24, 14, 50, 0), "MIPS", "SUBM-CITYCLINIC", "ePC02", "succeeded", 1}
+			        }
+			    ),
+			    LiveData =
+			        let
+			            Source = Sql.Database(SqlServerName, SqlDatabaseName),
+			            Table = Source{[Schema="dq",Item="SubmissionHistory"]}[Data],
+			            WithCount = Table.AddColumn(Table, "RowCount", each 1, Int64.Type)
+			        in
+			            WithCount,
+			    Result = if UseSampleData then SampleData else LiveData
 			in
-			    WithCount
+			    Result

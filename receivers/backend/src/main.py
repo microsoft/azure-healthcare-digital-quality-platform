@@ -427,8 +427,14 @@ def _evaluate_bp_measurement_via_orchestrator(
         "measures": measure_ids,
     }
 
+    nested_bundle = patient_blob.get("bundle") if isinstance(patient_blob.get("bundle"), dict) else None
     if patient_blob.get("resourceType") == "Bundle":
         base_payload["fhir_bundle"] = patient_blob
+    elif nested_bundle and nested_bundle.get("resourceType") == "Bundle":
+        # Member docs are stored as {"bundle": <FHIR Bundle>, "mrn": ...}. Send the
+        # raw Bundle so the orchestrator sees proper FHIR codings (required for CQL
+        # value-set matching) instead of the flattened fhir_view shape.
+        base_payload["fhir_bundle"] = nested_bundle
     else:
         base_payload.update(
             {

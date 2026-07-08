@@ -41,10 +41,13 @@ _logger = logging.getLogger(__name__)
 #     (parents[3] when the SDK has been vendored into this repo)
 def _default_value_sets_dir() -> Optional[Path]:
     here = Path(__file__).resolve()
-    candidates = [
-        here.parents[4] / "azure-healthcare-digital-quality-cql-sdk" / "tests" / "fixtures" / "valuesets",
-        here.parents[3] / "azure-healthcare-digital-quality-cql-sdk" / "tests" / "fixtures" / "valuesets",
-    ]
+    parents = here.parents
+    candidates = []
+    for depth in (4, 3):
+        if depth < len(parents):
+            candidates.append(
+                parents[depth] / "azure-healthcare-digital-quality-cql-sdk" / "tests" / "fixtures" / "valuesets"
+            )
     for c in candidates:
         if c.exists():
             return c

@@ -49,7 +49,8 @@ def _resolve_measures_dir() -> str:
     """Resolve the measures directory in priority order:
     1. ``MEASURES_DIR`` environment variable (explicit override).
     2. ``<dirname(__file__)>/measures`` — container layout (``/app/measures``).
-    3. ``<dirname(__file__)>/../../measures`` — local dev (project root).
+    3. ``<repo root>/_measures`` — post-refactor native layout.
+    4. ``<dirname(__file__)>/../../measures`` — legacy local dev layout.
     Falls back to (2) even if missing so the original behavior is preserved.
     """
     explicit = os.getenv("MEASURES_DIR")
@@ -57,11 +58,17 @@ def _resolve_measures_dir() -> str:
         return explicit
     here = os.path.dirname(os.path.abspath(__file__))
     container_candidate = os.path.join(here, "measures")
-    if os.path.isdir(container_candidate):
-        return container_candidate
-    project_root_candidate = os.path.abspath(os.path.join(here, "..", "..", "measures"))
-    if os.path.isdir(project_root_candidate):
-        return project_root_candidate
+    candidates = [
+        container_candidate,
+        # Post-refactor: CQL/MD live at repo-root `_measures/` (src is
+        # <repo>/<stack>/orchestrator/src, so repo root is three levels up).
+        os.path.abspath(os.path.join(here, "..", "..", "..", "_measures")),
+        # Legacy dev layout: <stack>/measures relative to src.
+        os.path.abspath(os.path.join(here, "..", "..", "measures")),
+    ]
+    for candidate in candidates:
+        if os.path.isdir(candidate):
+            return candidate
     return container_candidate
 
 
@@ -378,14 +385,21 @@ def _summarise_patient_context(ctx: Dict[str, Any]) -> str:
     if ctx["conditions"]:
         cond_strs = []
         for c in ctx["conditions"]:
-            codings = c.get("code", {}).get("coding", [])
-            display = codings[0].get("display", codings[0].get("code", "?")) if codings else "?"
+            code_field = c.get("code", {})
+            if isinstance(code_field, dict):
+                codings = code_field.get("coding", [])
+                display = codings[0].get("display", codings[0].get("code", "?")) if codings else (c.get("codeValue") or "?")
+            else:
+                # Flattened backend shape: `code` is a display string, `codeValue` the code.
+                display = str(code_field) if code_field else (c.get("codeValue") or "?")
             status = "?"
             cs = c.get("clinicalStatus")
             if isinstance(cs, dict):
                 cs_codings = cs.get("coding", [{}])
                 if cs_codings:
                     status = cs_codings[0].get("code", "?")
+            elif isinstance(cs, str) and cs:
+                status = cs
             cond_strs.append(f"  - {display} (status={status})")
         lines.append(f"Conditions ({len(ctx['conditions'])}):")
         lines.extend(cond_strs[:20])
@@ -403,11 +417,20 @@ def _summarise_patient_context(ctx: Dict[str, Any]) -> str:
     if ctx["observations"]:
         obs_strs = []
         for o in ctx["observations"]:
-            codings = o.get("code", {}).get("coding", [])
-            code = codings[0].get("code", "?") if codings else "?"
-            display = codings[0].get("display", code) if codings else code
+            code_field = o.get("code", {})
+            if isinstance(code_field, dict):
+                codings = code_field.get("coding", [])
+                code = codings[0].get("code", "?") if codings else (o.get("codeValue") or "?")
+                display = codings[0].get("display", code) if codings else code
+            else:
+                # Flattened backend shape: `code` is a display string, `codeValue` the code.
+                code = o.get("codeValue") or (str(code_field) if code_field else "?")
+                display = str(code_field) if code_field else code
             val = o.get("valueQuantity", {})
-            val_str = f"{val.get('value','')} {val.get('unit','')}" if val else ""
+            if isinstance(val, dict):
+                val_str = f"{val.get('value','')} {val.get('unit','')}" if val else ""
+            else:
+                val_str = str(val) if val else ""
             obs_strs.append(f"  - {display} ({code}): {val_str}")
         lines.append(f"Observations ({len(ctx['observations'])}):")
         lines.extend(obs_strs[:20])

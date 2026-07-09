@@ -82,7 +82,7 @@ def test_submission_parameters_extract_submitter(monkeypatch):
     assert "accepted" in merged_params
 
 
-def test_from_environment_builds_managed_identity_connection_string(monkeypatch):
+def test_from_environment_builds_token_auth_connection_string(monkeypatch):
     monkeypatch.setenv("RECEIVER_REPORTING_SQL_ENABLED", "true")
     monkeypatch.delenv("AZURE_SQL_CONNECTION_STRING", raising=False)
     monkeypatch.setenv("AZURE_SQL_SERVER_NAME", "sql-test")
@@ -94,5 +94,7 @@ def test_from_environment_builds_managed_identity_connection_string(monkeypatch)
     assert sink.enabled is True
     assert "Server=tcp:sql-test.database.windows.net,1433" in sink.connection_string
     assert "Database=dq_receiver_reporting" in sink.connection_string
-    assert "Authentication=ActiveDirectoryMsi" in sink.connection_string
-    assert "UID=11111111-1111-1111-1111-111111111111" in sink.connection_string
+    # Authentication is performed by injecting a Microsoft Entra access token at
+    # connect time (DefaultAzureCredential), not via an ODBC Authentication
+    # method, so the same path works for AKS workload identity and local dev.
+    assert "Authentication=" not in sink.connection_string

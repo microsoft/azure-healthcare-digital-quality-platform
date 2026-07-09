@@ -20,6 +20,14 @@
 providers/
 submitters/
 platform/
+consumers/
+deploy/
+
+# Dependency / build output directories (large; not needed in the image)
+**/node_modules/
+**/dist/
+**/build/
+**/.terraform/
 
 # Sibling services in the receivers stack
 receivers/frontend/

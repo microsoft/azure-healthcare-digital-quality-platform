@@ -58,6 +58,14 @@ spec:
           value: "180"
         - name: DIGITAL_QUALITY_ORCHESTRATOR_BASE_URL
           value: "http://orchestrator.dq.svc.cluster.local"
+        # Azure SQL reporting (canadacentral server reached via the eastus2
+        # private endpoint). Auth uses the workload identity access token.
+        - name: RECEIVER_REPORTING_SQL_ENABLED
+          value: "true"
+        - name: AZURE_SQL_SERVER_FQDN
+          value: "sql-rcv-cac-5o6t35lpdsx4i.database.windows.net"
+        - name: AZURE_SQL_DATABASE_NAME
+          value: "dq_receiver_reporting"
         volumeMounts:
         - name: tmp-volume
           mountPath: /tmp

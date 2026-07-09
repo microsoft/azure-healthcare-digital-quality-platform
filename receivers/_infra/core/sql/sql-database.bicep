@@ -42,8 +42,30 @@ param entraAdminLogin string = ''
 @description('Tenant ID for the Microsoft Entra administrator.')
 param entraAdminTenantId string = tenant().tenantId
 
+@description('Principal type of the Microsoft Entra administrator.')
+@allowed([
+  'User'
+  'Group'
+  'Application'
+])
+param entraAdminPrincipalType string = 'User'
+
 @description('When true, disables SQL password authentication after the Entra administrator is configured.')
 param azureAdOnlyAuthentication bool = false
+
+// Configure the Microsoft Entra administrator inline on the server so that
+// Entra-only authentication is applied at creation time. Governance policies
+// (e.g. MCAPS "SQL DB - Safe Secrets Standard") deny SQL servers that are not
+// created with azureADOnlyAuthentication enabled, which rules out setting the
+// administrator via separate child resources after the server exists.
+var entraAdministrator = (!empty(entraAdminObjectId) && !empty(entraAdminLogin)) ? {
+  administratorType: 'ActiveDirectory'
+  principalType: entraAdminPrincipalType
+  login: entraAdminLogin
+  sid: entraAdminObjectId
+  tenantId: entraAdminTenantId
+  azureADOnlyAuthentication: azureAdOnlyAuthentication
+} : null
 
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   name: serverName
@@ -55,6 +77,7 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
     minimalTlsVersion: '1.2'
     publicNetworkAccess: publicNetworkAccess
     restrictOutboundNetworkAccess: 'Disabled'
+    administrators: entraAdministrator
   }
 }
 
@@ -71,28 +94,6 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
     collation: 'SQL_Latin1_General_CP1_CI_AS'
     zoneRedundant: false
   }
-}
-
-resource sqlEntraAdmin 'Microsoft.Sql/servers/administrators@2023-08-01-preview' = if (!empty(entraAdminObjectId) && !empty(entraAdminLogin)) {
-  parent: sqlServer
-  name: 'ActiveDirectory'
-  properties: {
-    administratorType: 'ActiveDirectory'
-    login: entraAdminLogin
-    sid: entraAdminObjectId
-    tenantId: entraAdminTenantId
-  }
-}
-
-resource aadOnlyAuth 'Microsoft.Sql/servers/azureADOnlyAuthentications@2023-08-01-preview' = if (azureAdOnlyAuthentication && !empty(entraAdminObjectId) && !empty(entraAdminLogin)) {
-  parent: sqlServer
-  name: 'Default'
-  properties: {
-    azureADOnlyAuthentication: true
-  }
-  dependsOn: [
-    sqlEntraAdmin
-  ]
 }
 
 resource developerFirewallRule 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = if (publicNetworkAccess == 'Enabled' && !empty(developerIpAddress)) {

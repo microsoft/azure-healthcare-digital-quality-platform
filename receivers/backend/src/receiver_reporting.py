@@ -11,10 +11,16 @@ from __future__ import annotations
 import json
 import logging
 import os
+import struct
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Optional
 
 logger = logging.getLogger(__name__)
+
+# ODBC connection attribute for a pre-acquired Microsoft Entra access token and
+# the token scope for Azure SQL Database.
+_SQL_COPT_SS_ACCESS_TOKEN = 1256
+_AZURE_SQL_TOKEN_SCOPE = "https://database.windows.net/.default"
 
 _POPULATION_CODES = {
     "initial-population": "initialPopulation",
@@ -29,6 +35,7 @@ class ReceiverReportingSink:
     def __init__(self, connection_string: str = "", enabled: bool = False):
         self.connection_string = connection_string
         self.enabled = enabled and bool(connection_string)
+        self._credential: Any = None
 
     @classmethod
     def from_environment(cls) -> "ReceiverReportingSink":
@@ -38,7 +45,6 @@ class ReceiverReportingSink:
             server_fqdn = os.getenv("AZURE_SQL_SERVER_FQDN", "").strip()
             server_name = os.getenv("AZURE_SQL_SERVER_NAME", "").strip()
             database = os.getenv("AZURE_SQL_DATABASE_NAME", "").strip()
-            client_id = os.getenv("AZURE_CLIENT_ID", "").strip()
             if server_fqdn:
                 server = server_fqdn
                 if "." not in server:
@@ -50,14 +56,42 @@ class ReceiverReportingSink:
             else:
                 server = ""
             if server and database:
-                uid = f"UID={client_id};" if client_id else ""
+                # Build a connection string without an ODBC Authentication method.
+                # The Microsoft Entra access token is injected at connect time (see
+                # _execute), so the same code path works for AKS workload identity
+                # in-cluster and Azure CLI credentials during local development.
+                # AZURE_CLIENT_ID (when set) selects the user-assigned/workload
+                # identity through DefaultAzureCredential.
                 connection_string = (
                     "Driver={ODBC Driver 18 for SQL Server};"
                     f"Server=tcp:{server},1433;Database={database};"
-                    "Encrypt=yes;TrustServerCertificate=no;Authentication=ActiveDirectoryMsi;"
-                    f"{uid}"
+                    "Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
                 )
         return cls(connection_string=connection_string, enabled=enabled)
+
+    def _access_token_struct(self) -> Optional[bytes]:
+        """Return a packed access token for ``SQL_COPT_SS_ACCESS_TOKEN`` or ``None``.
+
+        Uses azure-identity's ``DefaultAzureCredential``, which resolves to the
+        AKS workload identity in-cluster (via ``AZURE_CLIENT_ID`` and the
+        projected federated token) and to the Azure CLI login during local
+        development. Returns ``None`` when azure-identity is unavailable or a
+        token cannot be acquired, in which case the connection string is used
+        as-is.
+        """
+        try:
+            from azure.identity import DefaultAzureCredential  # type: ignore[import-not-found]
+        except ImportError:
+            return None
+        try:
+            if self._credential is None:
+                self._credential = DefaultAzureCredential()
+            token = self._credential.get_token(_AZURE_SQL_TOKEN_SCOPE).token
+            token_bytes = token.encode("utf-16-le")
+            return struct.pack("<i", len(token_bytes)) + token_bytes
+        except Exception as exc:  # noqa: BLE001 - credential/network failures are non-fatal
+            logger.warning("Receiver reporting SQL token acquisition failed: %s", exc)
+            return None
 
     def _execute(self, sql: str, *params: Any) -> bool:
         if not self.enabled:
@@ -69,8 +103,16 @@ class ReceiverReportingSink:
         except ImportError as exc:
             logger.warning("Receiver reporting SQL persistence disabled; pyodbc is unavailable: %s", exc)
             return False
+        # Inject a Microsoft Entra access token unless the connection string
+        # already specifies an Authentication method (e.g. a preset
+        # AZURE_SQL_CONNECTION_STRING using ActiveDirectoryMsi).
+        attrs_before: Dict[int, Any] = {}
+        if "Authentication=" not in self.connection_string:
+            token_struct = self._access_token_struct()
+            if token_struct is not None:
+                attrs_before[_SQL_COPT_SS_ACCESS_TOKEN] = token_struct
         try:
-            with pyodbc.connect(self.connection_string, autocommit=True, timeout=5) as conn:
+            with pyodbc.connect(self.connection_string, autocommit=True, timeout=5, attrs_before=attrs_before) as conn:
                 conn.cursor().execute(sql, params)
             return True
         except pyodbc.Error as exc:
@@ -93,6 +135,17 @@ ON target.MeasureId = source.MeasureId
 WHEN NOT MATCHED THEN INSERT (MeasureId, MeasureName) VALUES (source.MeasureId, source.MeasureId);
 """,
             measure_id,
+        )
+        # Ensure the program dimension exists before the submitter references it
+        # (dq.Submitters.ProgramId -> dq.Programs.ProgramId foreign key).
+        self._execute(
+            """
+MERGE dq.Programs AS target
+USING (SELECT ? AS ProgramId) AS source
+ON target.ProgramId = source.ProgramId
+WHEN NOT MATCHED THEN INSERT (ProgramId, ProgramName) VALUES (source.ProgramId, source.ProgramId);
+""",
+            program_id,
         )
         ok = self._execute(
             """

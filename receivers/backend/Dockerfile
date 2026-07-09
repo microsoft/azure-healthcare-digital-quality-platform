@@ -1,4 +1,7 @@
-FROM  python:3.11-slim
+# Pin to Debian bookworm; the default python:3.11-slim moved to Debian 13
+# (trixie), whose apt signature verification rejects the Microsoft package
+# repo key and breaks the msodbcsql18 install below.
+FROM  python:3.11-slim-bookworm
 
 WORKDIR /app
 

@@ -1,0 +1,77 @@
+table ProcessingEvents
+	lineageTag: processing-events
+
+	measure 'Processing success rate' = DIVIDE(SUM('ProcessingEvents'[SucceededCount]), SUM('ProcessingEvents'[TotalCount]))
+		formatString: 0.0%
+
+	column ProcessingEventId
+		dataType: int64
+		sourceColumn: ProcessingEventId
+
+	column CreatedAtUtc
+		dataType: dateTime
+		sourceColumn: CreatedAtUtc
+
+	column EventType
+		dataType: string
+		sourceColumn: EventType
+
+	column Status
+		dataType: string
+		sourceColumn: Status
+
+	column ErrorMessage
+		dataType: string
+		sourceColumn: ErrorMessage
+
+	column SucceededCount
+		dataType: int64
+		sourceColumn: SucceededCount
+
+	column TotalCount
+		dataType: int64
+		sourceColumn: TotalCount
+
+	partition ProcessingEvents = m
+		mode: import
+		source =
+			let
+			    SampleData = #table(
+			        type table [
+			            ProcessingEventId = Int64.Type,
+			            CreatedAtUtc = datetime,
+			            EventType = text,
+			            Status = text,
+			            ErrorMessage = text,
+			            SucceededCount = Int64.Type,
+			            TotalCount = Int64.Type
+			        ],
+			        {
+			            {1, #datetime(2026, 1, 8, 9, 16, 0), "Validation", "succeeded", "", 1, 1},
+			            {2, #datetime(2026, 1, 15, 11, 41, 0), "MeasureCalculation", "succeeded", "", 1, 1},
+			            {3, #datetime(2026, 2, 3, 8, 6, 0), "Validation", "succeeded", "", 1, 1},
+			            {4, #datetime(2026, 2, 12, 14, 21, 0), "Validation", "failed", "Missing required FHIR resource: Patient", 0, 1},
+			            {5, #datetime(2026, 2, 27, 10, 1, 0), "MeasureCalculation", "succeeded", "", 1, 1},
+			            {6, #datetime(2026, 3, 6, 9, 46, 0), "Transformation", "succeeded", "", 1, 1},
+			            {7, #datetime(2026, 3, 19, 13, 31, 0), "Validation", "succeeded", "", 1, 1},
+			            {8, #datetime(2026, 3, 28, 16, 11, 0), "Submission", "succeeded", "", 1, 1},
+			            {9, #datetime(2026, 4, 9, 8, 51, 0), "MeasureCalculation", "succeeded", "", 1, 1},
+			            {10, #datetime(2026, 4, 21, 12, 16, 0), "Transformation", "succeeded", "", 1, 1},
+			            {11, #datetime(2026, 5, 5, 9, 6, 0), "Validation", "failed", "Terminology binding error: invalid LOINC code", 0, 1},
+			            {12, #datetime(2026, 5, 18, 15, 26, 0), "MeasureCalculation", "succeeded", "", 1, 1},
+			            {13, #datetime(2026, 5, 29, 11, 1, 0), "Submission", "succeeded", "", 1, 1},
+			            {14, #datetime(2026, 6, 11, 10, 36, 0), "Validation", "succeeded", "", 1, 1},
+			            {15, #datetime(2026, 6, 24, 14, 51, 0), "MeasureCalculation", "succeeded", "", 1, 1}
+			        }
+			    ),
+			    LiveData =
+			        let
+			            Source = Sql.Database(SqlServerName, SqlDatabaseName),
+			            Table = Source{[Schema="dq",Item="ProcessingEvents"]}[Data],
+			            WithSuccess = Table.AddColumn(Table, "SucceededCount", each if [Status] = "succeeded" then 1 else 0, Int64.Type),
+			            WithTotal = Table.AddColumn(WithSuccess, "TotalCount", each 1, Int64.Type)
+			        in
+			            WithTotal,
+			    Result = if UseSampleData then SampleData else LiveData
+			in
+			    Result

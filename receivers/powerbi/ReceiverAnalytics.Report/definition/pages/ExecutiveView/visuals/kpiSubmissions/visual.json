@@ -1,0 +1,37 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "kpiSubmissions",
+  "position": {
+    "x": 24,
+    "y": 112,
+    "z": 0,
+    "height": 120,
+    "width": 280,
+    "tabOrder": 0
+  },
+  "visual": {
+    "visualType": "cardVisual",
+    "query": {
+      "queryState": {
+        "Data": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "SubmissionHistory"
+                    }
+                  },
+                  "Property": "Total submissions"
+                }
+              },
+              "queryRef": "SubmissionHistory.Total submissions",
+              "nativeQueryRef": "Total submissions"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

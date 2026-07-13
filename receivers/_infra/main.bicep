@@ -83,6 +83,20 @@ param embeddingModelCapacity int = 10
 param cosmosDbAccountName string = ''
 param cosmosDatabaseName string = 'dq'
 
+// Azure SQL reporting configuration
+param sqlServerName string = ''
+param sqlDatabaseName string = 'dq_receiver_reporting'
+param sqlAdministratorLogin string = 'sqladminuser'
+@secure()
+@minLength(16)
+@description('SQL administrator password required by Azure SQL server provisioning. Runtime services use managed identity; this password is break-glass only and becomes unused when Entra-only authentication is enabled.')
+param sqlAdministratorPassword string
+param sqlDatabaseSkuName string = 'Basic'
+param sqlDatabaseSkuTier string = 'Basic'
+param sqlEntraAdminObjectId string = ''
+param sqlEntraAdminLogin string = ''
+param sqlAzureAdOnlyAuthentication bool = false
+
 
 
 // =========================================
@@ -194,6 +208,8 @@ resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
 
 var apimResourceToken = toLower(uniqueString(subscription().id, resourceGroupName, environmentName, location))
 var apiManagementName = '${abbrs.apiManagementService}${apimResourceToken}'
+var sqlReportingServerName = !empty(sqlServerName) ? sqlServerName : '${abbrs.sqlServers}${resourceToken}'
+var sqlReportingDatabaseName = sqlDatabaseName
 
 // apim service deployment
 module apimService './core/apim/apim.bicep' = {
@@ -766,6 +782,45 @@ module cosmosCohortsContainer './core/cosmos-db/nosql/container.bicep' = {
 }
 
 // =========================================
+// Azure SQL Database for receiver reporting and Power BI analytics
+// =========================================
+module receiverReportingSql './core/sql/sql-database.bicep' = {
+  name: 'receiverReportingSql'
+  scope: rg
+  params: {
+    serverName: sqlReportingServerName
+    databaseName: sqlReportingDatabaseName
+    location: location
+    tags: tags
+    administratorLogin: sqlAdministratorLogin
+    administratorPassword: sqlAdministratorPassword
+    publicNetworkAccess: vnetEnabled ? 'Disabled' : 'Enabled'
+    developerIpAddress: developerIpAddress
+    skuName: sqlDatabaseSkuName
+    skuTier: sqlDatabaseSkuTier
+    entraAdminObjectId: sqlEntraAdminObjectId
+    entraAdminLogin: sqlEntraAdminLogin
+    entraAdminTenantId: tenant().tenantId
+    azureAdOnlyAuthentication: sqlAzureAdOnlyAuthentication
+  }
+}
+
+module receiverReportingSqlPrivateEndpoint './app/sql-PrivateEndpoint.bicep' = if (vnetEnabled) {
+  name: 'receiverReportingSqlPrivateEndpoint'
+  scope: rg
+  params: {
+    location: location
+    tags: tags
+    virtualNetworkName: serviceVirtualNetworkName
+    subnetName: vnetEnabled ? serviceVirtualNetworkPrivateEndpointSubnetName : ''
+    serverName: receiverReportingSql.outputs.serverName
+  }
+  dependsOn: [
+    serviceVirtualNetwork
+  ]
+}
+
+// =========================================
 // Agent Learning Cosmos DB Resources
 // Database and containers for the Agent Learning SDK's RL loop.
 // Database name `dq_rl` aligns with the dq workbench naming.
@@ -1104,6 +1159,12 @@ output FOUNDRY_PROJECT_ENDPOINT string = foundry.outputs.projectEndpoint
 output FOUNDRY_MODEL_DEPLOYMENT_NAME string = foundryModelDeploymentName
 output FOUNDRY_ACCOUNT_NAME string = foundry.outputs.foundryAccountName
 output EMBEDDING_MODEL_DEPLOYMENT_NAME string = embeddingModelDeploymentName
+
+// Azure SQL reporting outputs
+output AZURE_SQL_SERVER_NAME string = receiverReportingSql.outputs.serverName
+output AZURE_SQL_DATABASE_NAME string = receiverReportingSql.outputs.databaseName
+output AZURE_SQL_SERVER_FQDN string = receiverReportingSql.outputs.fullyQualifiedDomainName
+output AZURE_SQL_CONNECTION_STRING string = 'Driver={ODBC Driver 18 for SQL Server};Server=tcp:${receiverReportingSql.outputs.fullyQualifiedDomainName},1433;Database=${receiverReportingSql.outputs.databaseName};Encrypt=yes;TrustServerCertificate=no;Authentication=ActiveDirectoryMsi;UID=${mcpUserAssignedIdentity.outputs.identityClientId};'
 
 // CosmosDB outputs
 output COSMOSDB_ENDPOINT string = cosmosAccount.outputs.endpoint

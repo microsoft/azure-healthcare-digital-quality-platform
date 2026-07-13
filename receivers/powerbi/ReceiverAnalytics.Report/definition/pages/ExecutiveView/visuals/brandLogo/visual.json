@@ -1,0 +1,33 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "brandLogo",
+  "position": { "x": 24, "y": 16, "z": 10, "height": 64, "width": 340, "tabOrder": 4 },
+  "visual": {
+    "visualType": "image",
+    "objects": {
+      "general": [{
+        "properties": {
+          "imageUrl": {
+            "expr": {
+              "ResourcePackageItem": {
+                "PackageName": "RegisteredResources",
+                "PackageType": 1,
+                "ItemName": "cmslogo-a1c93f70.svg"
+              }
+            }
+          }
+        }
+      }],
+      "image": [{
+        "properties": {
+          "fit": { "expr": { "Literal": { "Value": "'Fit'" } } }
+        }
+      }]
+    },
+    "visualContainerObjects": {
+      "background": [{ "properties": { "show": { "expr": { "Literal": { "Value": "false" } } } } }],
+      "border": [{ "properties": { "show": { "expr": { "Literal": { "Value": "false" } } } } }]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

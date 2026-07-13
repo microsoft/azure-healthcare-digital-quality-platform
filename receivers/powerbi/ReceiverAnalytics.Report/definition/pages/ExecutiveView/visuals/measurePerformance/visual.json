@@ -1,0 +1,56 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "measurePerformance",
+  "position": {
+    "x": 632,
+    "y": 264,
+    "z": 0,
+    "height": 240,
+    "width": 584,
+    "tabOrder": 0
+  },
+  "visual": {
+    "visualType": "clusteredColumnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "MeasureReports"
+                    }
+                  },
+                  "Property": "MeasureId"
+                }
+              },
+              "queryRef": "MeasureReports.MeasureId",
+              "nativeQueryRef": "MeasureId",
+              "displayName": "Measure"
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "MeasureReports"
+                    }
+                  },
+                  "Property": "Performance rate"
+                }
+              },
+              "queryRef": "MeasureReports.Performance rate",
+              "nativeQueryRef": "Performance rate"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

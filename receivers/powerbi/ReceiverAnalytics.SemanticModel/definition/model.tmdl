@@ -1,0 +1,8 @@
+model ReceiverAnalytics
+	culture: en-US
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: en-US
+
+	annotation __PBI_TimeIntelligenceEnabled = 0
+
+annotation PBI_ProTooling = ["TMDL-Extension"]

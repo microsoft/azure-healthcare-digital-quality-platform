@@ -36,6 +36,9 @@ from urllib.parse import quote_plus
 import requests
 # Custom modules for database operations
 import cosmosdb_helper
+from receiver_reporting import ReceiverReportingSink
+
+reportingSink: ReceiverReportingSink
 from auth_middleware import get_current_user, get_current_user_from_request, require_auth, get_user_from_request, extract_token_from_request, user_has_role
 from typing import Dict, Any, List, Optional
 
@@ -663,6 +666,7 @@ def _persist_measurement_execution(
 
     if hasattr(cosmosDBHelper, "save_measurement_result"):
         cosmosDBHelper.save_measurement_result(patient_id, record)
+        reportingSink.persist_measurement_execution(patient_id, record)
         return True
 
     # Fallback for mock helper or helpers without partial-update support.
@@ -673,6 +677,7 @@ def _persist_measurement_execution(
     patient_data["measurement_executions"] = executions
     patient_data["last_measurement_result"] = record
     cosmosDBHelper.save_patient_data(patient_id, patient_data)
+    reportingSink.persist_measurement_execution(patient_id, record)
     return True
 
 # Task model for background processing
@@ -810,6 +815,7 @@ def _resolve_sample_data_dir() -> Path:
 
 
 sample_data_dir = _resolve_sample_data_dir()
+reportingSink = ReceiverReportingSink.from_environment()
 
 
 def _missing_or_placeholder(value: str | None) -> bool:
@@ -1565,10 +1571,12 @@ try:
         if measure_submissions_helper is not None:
             try:
                 measure_submissions_helper.save_patient_data(record["id"], record)
+                reportingSink.persist_submission(record)
                 return True
             except Exception as e:  # noqa: BLE001
                 print(f"⚠ Failed to persist DEQM submission to Cosmos: {e}")
         _deqm_submissions_mem[record["id"]] = record
+        reportingSink.persist_submission(record)
         return True
 
     def _deqm_save_measure_report(subject_id: str, report_id: str, report: Dict[str, Any]) -> bool:
@@ -1576,10 +1584,12 @@ try:
         if measure_reports_helper is not None:
             try:
                 measure_reports_helper.save_patient_data(report_id, record)
+                reportingSink.persist_measure_report(record)
                 return True
             except Exception as e:  # noqa: BLE001
                 print(f"⚠ Failed to persist DEQM MeasureReport to Cosmos: {e}")
         _deqm_measure_reports_mem[report_id] = record
+        reportingSink.persist_measure_report(record)
         return True
 
     app.include_router(

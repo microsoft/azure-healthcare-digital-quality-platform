@@ -1,0 +1,45 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/report/2.0.0/schema.json",
+  "themeCollection": {
+    "baseTheme": {
+      "name": "CY24SU06",
+      "reportVersionAtImport": "5.56",
+      "type": "SharedResources"
+    },
+    "customTheme": {
+      "name": "CMSBrand-b7e21d90.json",
+      "reportVersionAtImport": "5.56",
+      "type": "RegisteredResources"
+    }
+  },
+  "settings": {
+    "allowChangeFilterTypes": true
+  },
+  "resourcePackages": [
+    {
+      "name": "RegisteredResources",
+      "type": "RegisteredResources",
+      "items": [
+        {
+          "name": "CMSBrand-b7e21d90.json",
+          "path": "CMSBrand-b7e21d90.json",
+          "type": "CustomTheme"
+        },
+        {
+          "name": "cmslogo-a1c93f70.svg",
+          "path": "cmslogo-a1c93f70.svg",
+          "type": "Image"
+        }
+      ]
+    }
+  ],
+  "objects": {
+    "outspacePane": [
+      {
+        "properties": {
+          "expanded": { "expr": { "Literal": { "Value": "false" } } }
+        }
+      }
+    ]
+  }
+}

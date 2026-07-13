@@ -1,0 +1,32 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "headerBand",
+  "position": { "x": 0, "y": 0, "z": 0, "height": 96, "width": 1280, "tabOrder": 6 },
+  "visual": {
+    "visualType": "shape",
+    "objects": {
+      "shape": [{ "properties": { "tileShape": { "expr": { "Literal": { "Value": "'rectangle'" } } } } }],
+      "fill": [{
+        "properties": {
+          "fillColor": { "solid": { "color": { "expr": { "Literal": { "Value": "'#112E51'" } } } } },
+          "transparency": { "expr": { "Literal": { "Value": "0D" } } }
+        },
+        "selector": { "id": "default" }
+      }],
+      "outline": [{
+        "properties": { "show": { "expr": { "Literal": { "Value": "false" } } } },
+        "selector": { "id": "default" }
+      }]
+    },
+    "visualContainerObjects": {
+      "background": [{ "properties": { "show": { "expr": { "Literal": { "Value": "false" } } } } }],
+      "border": [{ "properties": { "show": { "expr": { "Literal": { "Value": "false" } } } } }],
+      "padding": [{ "properties": {
+        "top": { "expr": { "Literal": { "Value": "0D" } } },
+        "bottom": { "expr": { "Literal": { "Value": "0D" } } },
+        "left": { "expr": { "Literal": { "Value": "0D" } } },
+        "right": { "expr": { "Literal": { "Value": "0D" } } }
+      } }]
+    }
+  }
+}

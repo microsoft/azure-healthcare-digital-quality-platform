@@ -1,0 +1,84 @@
+table MeasureReports
+	lineageTag: measure-reports
+
+	measure 'Performance rate' = AVERAGE('MeasureReports'[PerformanceRate])
+		formatString: 0.0%
+
+	column MeasureReportId
+		dataType: string
+		sourceColumn: MeasureReportId
+
+	column MeasureId
+		dataType: string
+		sourceColumn: MeasureId
+
+	column SubmitterId
+		dataType: string
+		sourceColumn: SubmitterId
+
+	column ProgramId
+		dataType: string
+		sourceColumn: ProgramId
+
+	column PeriodStart
+		dataType: dateTime
+		sourceColumn: PeriodStart
+
+	column PeriodEnd
+		dataType: dateTime
+		sourceColumn: PeriodEnd
+
+	column Numerator
+		dataType: int64
+		sourceColumn: Numerator
+
+	column Denominator
+		dataType: int64
+		sourceColumn: Denominator
+
+	column Exclusions
+		dataType: int64
+		sourceColumn: Exclusions
+
+	column PerformanceRate
+		dataType: decimal
+		sourceColumn: PerformanceRate
+
+	partition MeasureReports = m
+		mode: import
+		source =
+			let
+			    SampleData = #table(
+			        type table [
+			            MeasureReportId = text,
+			            MeasureId = text,
+			            SubmitterId = text,
+			            ProgramId = text,
+			            PeriodStart = datetime,
+			            PeriodEnd = datetime,
+			            Numerator = Int64.Type,
+			            Denominator = Int64.Type,
+			            Exclusions = Int64.Type,
+			            PerformanceRate = number
+			        ],
+			        {
+			            {"MR-2001", "CMS122", "SUBM-ACME", "MIPS", #datetime(2026, 1, 1, 0, 0, 0), #datetime(2026, 3, 31, 0, 0, 0), 18, 120, 8, 0.150},
+			            {"MR-2002", "CMS165", "SUBM-BAYSTATE", "MIPS", #datetime(2026, 1, 1, 0, 0, 0), #datetime(2026, 3, 31, 0, 0, 0), 95, 130, 6, 0.731},
+			            {"MR-2003", "ePC02", "SUBM-CITYCLINIC", "Medicaid", #datetime(2026, 1, 1, 0, 0, 0), #datetime(2026, 3, 31, 0, 0, 0), 4, 210, 12, 0.019},
+			            {"MR-2004", "CMS122", "SUBM-NORTHWELL", "MedicareAdvantage", #datetime(2026, 1, 1, 0, 0, 0), #datetime(2026, 3, 31, 0, 0, 0), 22, 140, 10, 0.157},
+			            {"MR-2005", "CMS165", "SUBM-ACME", "MIPS", #datetime(2026, 4, 1, 0, 0, 0), #datetime(2026, 6, 30, 0, 0, 0), 108, 135, 7, 0.800},
+			            {"MR-2006", "CMS122", "SUBM-BAYSTATE", "Medicaid", #datetime(2026, 4, 1, 0, 0, 0), #datetime(2026, 6, 30, 0, 0, 0), 16, 118, 9, 0.136},
+			            {"MR-2007", "CMS165", "SUBM-CITYCLINIC", "MIPS", #datetime(2026, 4, 1, 0, 0, 0), #datetime(2026, 6, 30, 0, 0, 0), 88, 124, 5, 0.710},
+			            {"MR-2008", "ePC02", "SUBM-NORTHWELL", "MedicareAdvantage", #datetime(2026, 4, 1, 0, 0, 0), #datetime(2026, 6, 30, 0, 0, 0), 3, 175, 8, 0.017},
+			            {"MR-2009", "CMS122", "SUBM-ACME", "MIPS", #datetime(2026, 4, 1, 0, 0, 0), #datetime(2026, 6, 30, 0, 0, 0), 14, 122, 8, 0.115}
+			        }
+			    ),
+			    LiveData =
+			        let
+			            Source = Sql.Database(SqlServerName, SqlDatabaseName),
+			            Table = Source{[Schema="dq",Item="MeasureReports"]}[Data]
+			        in
+			            Table,
+			    Result = if UseSampleData then SampleData else LiveData
+			in
+			    Result

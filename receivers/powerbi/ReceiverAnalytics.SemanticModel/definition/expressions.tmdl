@@ -1,0 +1,3 @@
+expression SqlServerName = "sql-rcv-cac-5o6t35lpdsx4i.database.windows.net" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+expression SqlDatabaseName = "dq_receiver_reporting" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+expression UseSampleData = true meta [IsParameterQuery=true, Type="Logical", IsParameterQueryRequired=true]

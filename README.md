@@ -515,7 +515,7 @@ Submitters compute DEQM summaries (CMS165, CMS122, ePC-02) and push a DEQM
     reporting) Azure SQL.
 - **Required tooling**
   - Azure CLI + Azure Developer CLI (`azd`) + `kubectl`
-  - Python **3.11+** for backend/frontend tooling and **3.12** for orchestrator runtime (`ms-cql-sdk`)
+  - Python **3.11+** (backend, frontend tooling, and orchestrator runtime)
   - Node.js 20+ (frontend)
   - `ms-cql-sdk>=0.4.3` (already pinned in `submitters/orchestrator/src/requirements.txt`)
 - **AKS sizing + namespace assumptions**
@@ -599,10 +599,11 @@ Submitters compute DEQM summaries (CMS165, CMS122, ePC-02) and push a DEQM
      }'
    ```
 2. (Optional direct receiver DEQM test) POST a FHIR `Parameters` payload to `$submit-data`
-   with a summary `MeasureReport` plus supporting `Bundle`:
+   with a summary `MeasureReport` plus supporting `Bundle` (set
+   `RECEIVER_AUTH_HEADER` to your OAuth bearer authorization header):
    ```bash
    curl -X POST "http://127.0.0.1:8010/fhir/Measure/CMS165v9/\$submit-data" \
-     -H "Authorization: ******" \
+     -H "$RECEIVER_AUTH_HEADER" \
      -H "Content-Type: application/json" \
      -d '{
        "resourceType": "Parameters",

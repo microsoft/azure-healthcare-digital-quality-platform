@@ -500,6 +500,144 @@ with no Entra config. To exercise real token validation locally, set
   invalid token returns `401`; a valid token lacking the role returns `403`.
 - Run the test suite: `pytest _tests/test_oauth_submitter_receiver.py -q`.
 
+### Submitter → Receiver Exchange: Install & Test
+
+This walkthrough is the operational path for the CMS↔MultiCare-style pilot flow:
+Submitters compute DEQM summaries (CMS165, CMS122, ePC-02) and push a DEQM
+`MeasureReport` plus optional supporting FHIR bundle to the Receivers stack.
+
+#### 1. Prerequisites
+
+- **Azure tenancy and subscriptions**
+  - Provision one Azure subscription + tenant context for **Submitters** and one
+    for **Receivers** (can be the same tenant for local/single-tenant pilots).
+  - Ensure both have quota for AKS, ACR, APIM, Cosmos DB, and (for receivers
+    reporting) Azure SQL.
+- **Required tooling**
+  - Azure CLI + Azure Developer CLI (`azd`) + `kubectl`
+  - Python **3.11+** (backend, frontend tooling, and orchestrator runtime)
+  - Node.js 20+ (frontend)
+  - `ms-cql-sdk>=0.4.3` (already pinned in `submitters/orchestrator/src/requirements.txt`)
+- **AKS sizing + namespace assumptions**
+  - Default stack parameters use `AKS_SYSTEM_NODEPOOL_VM_SIZE=Standard_D2s_v6`
+    and `AKS_SYSTEM_NODEPOOL_COUNT=1` (see `submitters/_infra/main.parameters.json`
+    and `receivers/_infra/main.parameters.json`).
+  - Kubernetes manifests assume namespace `dq`.
+- **OAuth 2.0 / Entra ID app registrations**
+  - Complete the setup in [Submitter → Receiver API Authentication](#submitter--receiver-api-authentication-oauth-20-client-credentials):
+    register receiver API, register submitter client, grant `Receiver.Submit`,
+    and set stack-specific environment variables.
+
+#### 2. Install the Submitter stack
+
+1. Deploy infrastructure + services:
+   ```bash
+   cd submitters
+   azd auth login
+   azd up
+   ```
+2. Configure submitter backend secret/env values (local `.env` or k8s secret):
+   `RECEIVERS_BACKEND_BASE_URL`, `ENTRA_TENANT_ID`, `ENTRA_CLIENT_ID`,
+   optional `ENTRA_CLIENT_SECRET`, and `RECEIVER_APP_ID_URI`.
+3. Install runtime dependencies for local validation:
+   ```bash
+   pip install -r submitters/backend/requirements.txt
+   pip install -r submitters/orchestrator/src/requirements.txt
+   ```
+4. Confirm CQL measure artifacts are present for the three pilot measures:
+   - `_measures/CMS165v9_ControllingHighBloodPressure.cql`
+   - `_measures/CMS122v11_DiabetesHbA1cPoorControl.cql`
+   - `_measures/ePC02_SevereObstetricComplications.cql`
+5. Seed sample cohort/member data (optional but recommended for pilot smoke tests):
+   ```bash
+   echo "y" | python submitters/backend/src/load_patients.py _data/patients.json
+   ```
+6. Verify submitter health:
+   ```bash
+   curl -s http://127.0.0.1:8000/
+   curl -s http://127.0.0.1:8001/tools
+   ```
+
+#### 3. Install the Receiver stack
+
+1. Deploy infrastructure + services:
+   ```bash
+   cd receivers
+   azd auth login
+   azd up
+   ```
+2. Configure receiver auth/persistence env values (local `.env` or k8s secret):
+   `ENTRA_TENANT_ID`, `ENTRA_CLIENT_ID`, `RECEIVER_APP_ID_URI`, `REQUIRED_ROLE=Receiver.Submit`,
+   Cosmos values, and SQL reporting values when enabled.
+3. Apply SQL schema for receiver reporting (optional but recommended):
+   ```bash
+   # Apply receivers/reporting/sql/schema.sql to the provisioned Azure SQL DB
+   ```
+   See `_docs/RECEIVERS_REPORTING.md` for schema + managed identity setup.
+4. Verify receiver endpoint reachability + auth:
+   - API health: `curl -s http://127.0.0.1:8010/`
+   - Auth check: call `POST /api/workbench/measure-reports` with a bearer token
+     carrying `Receiver.Submit`; expect `200`, else `401/403`.
+5. Configure Power BI dashboard connection:
+   - Open `receivers/powerbi/ReceiverAnalytics.pbip`
+   - Set semantic model parameters `SqlServerName` and `SqlDatabaseName`
+   - Publish after refresh credentials are validated
+
+#### 4. Test DEQM Summary MeasureReport + FHIR bundle exchange
+
+1. Trigger a submitter-side send (builds DEQM payload from cohort rollup):
+   ```bash
+   curl -X POST "http://127.0.0.1:8000/api/workbench/cohorts/<cohort-id>/measure-reports?reportType=summary" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "agencyId": "cms",
+       "programId": "hqr",
+       "measureIds": ["CMS165v9","CMS122v11","ePC02"],
+       "periodStart": "2026-01-01",
+       "periodEnd": "2026-12-31",
+       "note": "pilot submitter->receiver summary test"
+     }'
+   ```
+2. (Optional direct receiver DEQM test) POST a FHIR `Parameters` payload to `$submit-data`
+   with a summary `MeasureReport` plus supporting `Bundle` (set
+   `RECEIVER_AUTH_HEADER` to your OAuth bearer authorization header):
+   ```bash
+   curl -X POST "http://127.0.0.1:8010/fhir/Measure/CMS165v9/\$submit-data" \
+     -H "$RECEIVER_AUTH_HEADER" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "resourceType": "Parameters",
+       "parameter": [
+         {
+           "name": "measureReport",
+           "resource": {
+             "resourceType": "MeasureReport",
+             "id": "pilot-summary-001",
+             "status": "complete",
+             "type": "summary",
+             "measure": "http://example.org/fhir/Measure/CMS165v9|9.0.000",
+             "period": {"start": "2026-01-01", "end": "2026-12-31"}
+           }
+         },
+         {
+           "name": "resource",
+           "resource": {
+             "resourceType": "Bundle",
+             "type": "collection",
+             "entry": []
+           }
+         }
+       ]
+     }'
+   ```
+3. Expected response:
+   - `200 OK` with `{"report": {...}}` (single MeasureReport) or
+     `{"reports": [...], "count": <n>}` (Bundle)
+   - `201 Created` with FHIR `OperationOutcome` + `Location` header when using
+     `POST /fhir/Measure/{id}/$submit-data`
+   - `400` with FHIR `OperationOutcome` on DEQM validation failures
+   - `401/403` for missing/insufficient auth
+
 ### Per-Service Build & Deploy
 
 Each app folder has its own Dockerfile and Kubernetes manifest. The backend and orchestrator Dockerfiles `COPY` from `<stack>/<svc>/...`, `_data/`, and `_measures/`, so the build context must be the repo root. Build and roll images independently. The example below uses the Submitters stack; substitute `consumers/`, `providers/`, `receivers/`, or `platform/` for any other stack (and skip the orchestrator block for the stacks that do not ship one):

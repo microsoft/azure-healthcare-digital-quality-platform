@@ -22,6 +22,12 @@ Per-stack runtime shared by all five stacks: request flow through API Management
 
 ![Stack](_images/stack.svg)
 
+#### Activator Architecture
+
+Reference architecture for the Activator stack showing the external participant flow, API Management edge, AKS-hosted processing services, operational data stores, analytics path, identity, security, monitoring, and DevOps platform support.
+
+![Activator Digital Quality Platform Architecture](_images/activator-digital-quality-platform-architecture.png)
+
 
 
 The same stack serves three distinct digital quality measure (DQM) processing modes:

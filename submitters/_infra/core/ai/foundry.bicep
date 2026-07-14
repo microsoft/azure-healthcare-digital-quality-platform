@@ -1,9 +1,6 @@
 @description('Name of the foundry resource')
 param foundryName string
 
-@description('Name of the Bing Grounding resource')
-param bingName string
-
 @description('Location for all resources')
 param location string
 
@@ -32,7 +29,7 @@ param fineTuneModelDeploymentName string = 'gpt-4o-mini'
 param fineTuneModelName string = 'gpt-4o-mini'
 
 @description('Fine-tuning model version')
-param fineTuneModelVersion string = '2024-07-18'
+param fineTuneModelVersion string = '2025-08-07'
 
 @description('Fine-tuning model capacity')
 param fineTuneModelCapacity int = 10
@@ -60,19 +57,6 @@ param publicNetworkAccess string = 'Enabled'
 
 @description('Set to true to restore a soft-deleted Foundry/Cognitive account with the same name')
 param restoreFoundryAccount bool = false
-
-// Create Bing Grounding resource
-resource bingGrounding 'Microsoft.Bing/accounts@2020-06-10' = {
-  name: bingName
-  location: 'global'
-  sku: {
-    name: 'G1'
-  }
-  kind: 'Bing.Grounding'
-  properties: {
-    statisticsEnabled: false
-  }
-}
 
 // Create AI Services foundry account
 resource foundryAccount 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
@@ -134,12 +118,12 @@ resource modelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-
   }
 }
 
-// Deploy gpt-4o-mini model for fine-tuning
+// Deploy gpt-5-mini model for fine-tuning
 resource fineTuneModelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2025-06-01' = if (enableModelDeployments) {
   parent: foundryAccount
   name: fineTuneModelDeploymentName
   sku: {
-    name: 'Standard'
+    name: 'GlobalStandard'
     capacity: fineTuneModelCapacity
   }
   properties: {
@@ -190,32 +174,8 @@ resource defaultProject 'Microsoft.CognitiveServices/accounts/projects@2025-06-0
     type: 'SystemAssigned'
   }
   properties: {
-    description: 'Default project for web summarization with Bing grounding'
+    description: 'Default project for AI-assisted digital quality measures'
     displayName: 'proj-default'
-  }
-}
-
-// Create Bing connection at project level
-resource bingConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2025-06-01' = {
-  parent: defaultProject
-  name: bingName
-  properties: {
-    authType: 'ApiKey'
-    category: 'ApiKey'
-    target: 'https://api.bing.microsoft.com/'
-    credentials: {
-      key: listKeys(bingGrounding.id, bingGrounding.apiVersion).key1
-    }
-    useWorkspaceManagedIdentity: false
-    isSharedToAll: false
-    sharedUserList: []
-    peRequirement: 'NotRequired'
-    peStatus: 'NotApplicable'
-    metadata: {
-      type: 'bing_grounding'
-      ApiType: 'Azure'
-      ResourceId: bingGrounding.id
-    }
   }
 }
 
@@ -224,9 +184,6 @@ output foundryAccountName string = foundryAccount.name
 output foundryEndpoint string = foundryAccount.properties.endpoint
 output projectId string = defaultProject.id
 output projectEndpoint string = 'https://${foundryName}.services.ai.azure.com/api/projects/proj-default'
-output bingConnectionId string = bingConnection.id
-output bingConnectionName string = bingConnection.name
-output bingResourceId string = bingGrounding.id
 output modelDeploymentName string = enableModelDeployments ? modelDeployment.name : ''
 output fineTuneModelDeploymentName string = enableModelDeployments ? fineTuneModelDeployment.name : ''
 output embeddingModelDeploymentName string = enableModelDeployments ? embeddingModelDeployment.name : ''

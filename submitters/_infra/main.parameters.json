@@ -18,7 +18,7 @@
       "value": "${APIM_VNET_MODE=External}"
     },
     "aksSystemNodePoolVmSize": {
-      "value": "${AKS_SYSTEM_NODEPOOL_VM_SIZE=Standard_D2s_v6}"
+      "value": "${AKS_SYSTEM_NODEPOOL_VM_SIZE=Standard_D2s_v3}"
     },
     "aksSystemNodePoolName": {
       "value": "${AKS_SYSTEM_NODEPOOL_NAME=sys3}"

@@ -60,8 +60,8 @@ param aksSystemNodePoolCount int = 1
 // Foundry AI configuration
 param foundryName string = ''
 param foundryModelDeploymentName string = 'gpt-4o-mini'
-param foundryModelName string = 'gpt-4o-mini'
-param foundryModelVersion string = '2024-07-18'
+param foundryModelName string = 'gpt-5-mini'
+param foundryModelVersion string = '2025-08-07'
 param foundryModelCapacity int = 10
 param enableFoundryModelDeployments bool = true
 param enableFoundryAgentsCapabilityHost bool = true
@@ -69,8 +69,8 @@ param restoreFoundryAccount bool = false
 
 // Fine-tuning model configuration
 param fineTuneModelDeploymentName string = 'gpt-4o-mini-ft'
-param fineTuneModelName string = 'gpt-4o-mini'
-param fineTuneModelVersion string = '2024-07-18'
+param fineTuneModelName string = 'gpt-5-mini'
+param fineTuneModelVersion string = '2025-08-07'
 param fineTuneModelCapacity int = 10
 
 // Embeddings model configuration
@@ -507,14 +507,12 @@ module storagePrivateEndpoint 'app/storage-PrivateEndpoint.bicep' = if (vnetEnab
 
 // Azure AI Foundry deployment
 var foundryResourceName = !empty(foundryName) ? foundryName : '${abbrs.cognitiveServicesAccounts}${resourceToken}'
-var bingResourceName = 'bing-${resourceToken}'
 
 module foundry './core/ai/foundry.bicep' = {
   name: 'foundry'
   scope: rg
   params: {
     foundryName: foundryResourceName
-    bingName: bingResourceName
     location: location
     modelDeploymentName: foundryModelDeploymentName
     modelName: foundryModelName

@@ -26,6 +26,8 @@ Per-stack runtime shared by all five stacks: request flow through API Management
 
 Reference architecture for the Activator stack showing the external participant flow, API Management edge, AKS-hosted processing services, operational data stores, analytics path, identity, security, monitoring, and DevOps platform support.
 
+[Activator Solution Architecture](_docs/Activator%20Solution%20Architecture.md) provides the detailed architecture description and diagram.
+
 ![Activator Digital Quality Platform Architecture](_images/activator-digital-quality-platform-architecture.png)
 
 

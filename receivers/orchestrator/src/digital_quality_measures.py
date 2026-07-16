@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 
 from digital_quality_measures_native_cql_executor import CQLExecutor, normalize_measure_id
 from digital_quality_measures_lm_cql_executor import DigitalQualityMeasuresLMCQLExecutor
+from digital_quality_measures_dqm_executor import DQMExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -204,6 +205,7 @@ class FHIRQualityRequest(BaseModel):
 
 _measure_catalog: Dict[str, MeasureDefinition] = {}
 _cql_executor = CQLExecutor()
+_dqm_executor = DQMExecutor()
 _lm_executor = DigitalQualityMeasuresLMCQLExecutor(
     foundry_project_endpoint=FOUNDRY_PROJECT_ENDPOINT,
     model_deployment=QUALITY_MODEL_DEPLOYMENT,
@@ -608,6 +610,58 @@ def evaluate_single_measure_cql(
         detail=result.detail,
     )
 
+def evaluate_single_measure_dqm(
+    measure_def: MeasureDefinition,
+    context: Dict[str, Any],
+    measurement_period_start: str,
+    measurement_period_end: str,
+) -> MeasureResult:
+    """Evaluate a FHIR/QI-Core eCQM measure *package* via the DQM executor.
+
+    Used for multi-library QI-Core measures (e.g. CMS122FHIR, CMS165FHIR,
+    CMS1028FHIR) that the single-file native executor cannot parse. On failure
+    a diagnostic ``MeasureResult`` is returned rather than falling back to the
+    native parser (which cannot handle QI-Core CQL).
+    """
+    try:
+        dqm = _dqm_executor.evaluate(
+            measure_id=measure_def.measure_id,
+            context=context,
+            measurement_period_start=measurement_period_start,
+            measurement_period_end=measurement_period_end,
+            measure_name=measure_def.measure_name,
+        )
+        return MeasureResult(
+            measure_id=measure_def.measure_id or dqm.measure_id,
+            measure_name=measure_def.measure_name or dqm.measure_name,
+            program=dqm.program,
+            in_initial_population=dqm.in_initial_population,
+            in_denominator=dqm.in_denominator,
+            denominator_exclusion=dqm.denominator_exclusion,
+            denominator_exclusion_reasons=dqm.denominator_exclusion_reasons,
+            in_numerator=dqm.in_numerator,
+            numerator_reasons=dqm.numerator_reasons,
+            inverse_measure=dqm.inverse_measure,
+            controlled=dqm.controlled,
+            evidence_trace=dqm.evidence_trace,
+            detail=dqm.detail,
+        )
+    except Exception as e:
+        logger.error(f"DQM evaluation failed for {measure_def.measure_id}: {e}", exc_info=True)
+        return MeasureResult(
+            measure_id=measure_def.measure_id,
+            measure_name=measure_def.measure_name,
+            program="FHIR eCQM (QI-Core)",
+            in_initial_population=False,
+            in_denominator=False,
+            denominator_exclusion=False,
+            denominator_exclusion_reasons=[],
+            in_numerator=False,
+            numerator_reasons=[f"DQM evaluation error: {str(e)}"],
+            inverse_measure=False,
+            controlled=False,
+            evidence_trace=[f"ERROR: {str(e)}"],
+        )
 
 def evaluate_single_measure(
     measure_def: MeasureDefinition,
@@ -623,6 +677,15 @@ def evaluate_single_measure(
     """
     Evaluate a measure using the engine flags passed in the request.
     """
+    if use_native_cql_engine and _dqm_executor.has_package(measure_def.measure_id):
+        # Multi-library FHIR/QI-Core eCQM: evaluate the measure package.
+        return evaluate_single_measure_dqm(
+            measure_def=measure_def,
+            context=context,
+            measurement_period_start=measurement_period_start,
+            measurement_period_end=measurement_period_end,
+        )
+
     if use_native_cql_engine:
         try:
             return evaluate_single_measure_cql(

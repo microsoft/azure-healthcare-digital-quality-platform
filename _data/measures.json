@@ -34,5 +34,50 @@
     "enabled": true,
     "builtin": true,
     "tags": ["tag-hospital-quality", "tag-acute-care"]
+  },
+  {
+    "id": "CMS165FHIR",
+    "title": "Controlling High Blood Pressure (FHIR)",
+    "description": "Percentage of patients 18-85 years of age with essential hypertension whose most recent blood pressure was adequately controlled (<140/90 mmHg) during the measurement period. 2026 FHIR/QI-Core eCQM.",
+    "version": "1.0.000",
+    "topic": "Universal Foundation",
+    "scoring": "proportion",
+    "basis": "boolean",
+    "cqlLibrary": "CMS165FHIRControllingHighBP",
+    "engine": "dqm",
+    "package": "packages/CMS165FHIR",
+    "enabled": false,
+    "builtin": true,
+    "tags": ["tag-universal", "tag-mips", "tag-fhir-ecqm"]
+  },
+  {
+    "id": "CMS122FHIR",
+    "title": "Diabetes: Glycemic Status Assessment Greater Than 9% (FHIR)",
+    "description": "Percentage of patients 18-75 years of age with diabetes whose most recent glycemic status assessment (HbA1c or glucose management indicator) was >9.0% or missing during the measurement period. 2026 FHIR/QI-Core eCQM (formerly CMS122v11).",
+    "version": "1.0.000",
+    "topic": "Shared Savings Program",
+    "scoring": "proportion",
+    "basis": "boolean",
+    "cqlLibrary": "CMS122FHIRDiabetesAssessGT9Pct",
+    "engine": "dqm",
+    "package": "packages/CMS122FHIR",
+    "enabled": false,
+    "builtin": true,
+    "tags": ["tag-shared-savings", "tag-mips", "tag-fhir-ecqm"]
+  },
+  {
+    "id": "CMS1028FHIR",
+    "title": "Severe Obstetric Complications (FHIR)",
+    "description": "Inpatient delivery hospitalizations with severe obstetric complications. 2026 FHIR/QI-Core episode-of-care eCQM with two rate groups (formerly ePC-02).",
+    "version": "1.0.000",
+    "topic": "Hospital Quality Reporting",
+    "scoring": "proportion",
+    "basis": "Encounter",
+    "cqlLibrary": "CMS1028FHIRPCSevereOBComps",
+    "engine": "dqm",
+    "package": "packages/CMS1028FHIR",
+    "enabled": false,
+    "builtin": true,
+    "tags": ["tag-hospital-quality", "tag-acute-care", "tag-fhir-ecqm"]
   }
 ]

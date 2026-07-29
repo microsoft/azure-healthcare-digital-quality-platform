@@ -2,7 +2,18 @@ model ReceiverAnalytics
 	culture: en-US
 	defaultPowerBIDataSourceVersion: powerBI_V3
 	sourceQueryCulture: en-US
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
 
-	annotation __PBI_TimeIntelligenceEnabled = 0
+annotation __PBI_TimeIntelligenceEnabled = 0
 
-annotation PBI_ProTooling = ["TMDL-Extension"]
+annotation PBI_ProTooling = ["TMDL-Extension","DevMode"]
+
+annotation PBI_QueryOrder = ["MeasureReports","ProcessingEvents","SubmissionHistory","SqlServerName","SqlDatabaseName","UseSampleData"]
+
+ref table MeasureReports
+ref table ProcessingEvents
+ref table SubmissionHistory
+
+ref cultureInfo en-US

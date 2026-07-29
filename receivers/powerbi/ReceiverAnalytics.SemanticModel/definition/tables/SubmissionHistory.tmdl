@@ -1,78 +1,158 @@
 table SubmissionHistory
 	lineageTag: submission-history
 
+	/// Number of receiver submission records in the current filter context.
 	measure 'Total submissions' = SUM('SubmissionHistory'[RowCount])
+		formatString: #,##0
+		displayFolder: Participation
+		lineageTag: f94fdd93-325b-492c-a3ad-fa14297bc1b5
+
+	/// Distinct organizations that submitted data in the current filter context.
 	measure 'Active submitters' = DISTINCTCOUNT('SubmissionHistory'[SubmitterId])
+		formatString: #,##0
+		displayFolder: Participation
+		lineageTag: 6fd52dcd-c2c5-42bb-a1d1-1414c619d785
+
+	/// Distinct reporting programs represented by receiver submissions.
 	measure 'Programs onboarded' = DISTINCTCOUNT('SubmissionHistory'[ProgramId])
+		formatString: #,##0
+		displayFolder: Participation
+		lineageTag: 30263ba8-3b14-4899-a8ef-331f5bcdf5d3
+
+	/// Distinct quality measures represented by receiver submissions.
 	measure 'Measures processed' = DISTINCTCOUNT('SubmissionHistory'[MeasureId])
+		formatString: #,##0
+		displayFolder: Participation
+		lineageTag: 62a90952-6fb2-49a9-a95c-4aec75859e74
+
+	/// Number of receiver submissions in an accepted or successfully completed status.
+	measure 'Accepted submissions' =
+			CALCULATE(
+			    [Total submissions],
+			    KEEPFILTERS('SubmissionHistory'[Status] IN { "accepted", "succeeded" })
+			)
+		formatString: #,##0
+		displayFolder: Participation
+		lineageTag: f90c1e2e-3b09-4c9b-90dd-d9ce48c69de8
+
+	/// Number of receiver submissions in a failed status.
+	measure 'Failed submissions' =
+			CALCULATE(
+			    [Total submissions],
+			    KEEPFILTERS('SubmissionHistory'[Status] = "failed")
+			)
+		formatString: #,##0
+		displayFolder: Participation
+		lineageTag: e892606c-13fc-47f0-9e1b-22a9469940f3
+
+	/// Number of receiver submissions awaiting completion.
+	measure 'Pending submissions' =
+			CALCULATE(
+			    [Total submissions],
+			    KEEPFILTERS('SubmissionHistory'[Status] = "pending")
+			)
+		formatString: #,##0
+		displayFolder: Participation
+		lineageTag: e8ea236f-1096-41d1-8881-d2d8bcd07dd2
+
+	/// Share of receiver submissions that were accepted or completed successfully.
+	measure 'Acceptance rate' =
+			DIVIDE(
+			    [Accepted submissions],
+			    [Total submissions]
+			)
+		formatString: 0.0%
+		displayFolder: Participation
+		lineageTag: 634bf3d2-18f0-4645-bcc5-4e5554abc345
 
 	column SubmissionId
 		dataType: string
+		lineageTag: 7419b3ec-a363-4c0a-8827-86e9a27f48d3
 		sourceColumn: SubmissionId
 
 	column ReceivedAtUtc
 		dataType: dateTime
+		lineageTag: 0a12038f-384b-4bba-807e-5f25e7db984b
 		sourceColumn: ReceivedAtUtc
 
 	column ProgramId
 		dataType: string
+		lineageTag: e757790c-d309-4c80-9441-6a19e2acec59
 		sourceColumn: ProgramId
 
 	column SubmitterId
 		dataType: string
+		lineageTag: dd005f81-9f90-49c4-badd-0490e8167927
 		sourceColumn: SubmitterId
 
 	column MeasureId
 		dataType: string
+		lineageTag: 0323cfc2-2784-4e8c-8718-b18ba8bfb805
 		sourceColumn: MeasureId
+
+	column CohortId
+		dataType: string
+		lineageTag: a1714655-68d4-4db0-b77c-14a5be60af26
+		summarizeBy: none
+		sourceColumn: CohortId
+
+	column PayloadType
+		dataType: string
+		lineageTag: b69fb689-599d-49ed-b6bc-927f9327fd59
+		summarizeBy: none
+		sourceColumn: PayloadType
 
 	column Status
 		dataType: string
+		lineageTag: c8c22c80-f8bb-41ae-8582-00abfc1148a9
 		sourceColumn: Status
 
 	column RowCount
 		dataType: int64
+		lineageTag: e673ef0d-787e-4f3d-a68a-3181043e0690
 		sourceColumn: RowCount
 
 	partition SubmissionHistory = m
 		mode: import
 		source =
-			let
-			    SampleData = #table(
-			        type table [
-			            SubmissionId = text,
-			            ReceivedAtUtc = datetime,
-			            ProgramId = text,
-			            SubmitterId = text,
-			            MeasureId = text,
-			            Status = text,
-			            RowCount = Int64.Type
-			        ],
-			        {
-			            {"SUB-1001", #datetime(2026, 1, 8, 9, 15, 0), "MIPS", "SUBM-ACME", "CMS122", "succeeded", 1},
-			            {"SUB-1002", #datetime(2026, 1, 15, 11, 40, 0), "MIPS", "SUBM-BAYSTATE", "CMS165", "succeeded", 1},
-			            {"SUB-1003", #datetime(2026, 2, 3, 8, 5, 0), "Medicaid", "SUBM-CITYCLINIC", "ePC02", "succeeded", 1},
-			            {"SUB-1004", #datetime(2026, 2, 12, 14, 20, 0), "MedicareAdvantage", "SUBM-NORTHWELL", "CMS122", "failed", 1},
-			            {"SUB-1005", #datetime(2026, 2, 27, 10, 0, 0), "MIPS", "SUBM-ACME", "CMS165", "succeeded", 1},
-			            {"SUB-1006", #datetime(2026, 3, 6, 9, 45, 0), "Medicaid", "SUBM-BAYSTATE", "CMS122", "succeeded", 1},
-			            {"SUB-1007", #datetime(2026, 3, 19, 13, 30, 0), "MIPS", "SUBM-CITYCLINIC", "CMS165", "pending", 1},
-			            {"SUB-1008", #datetime(2026, 3, 28, 16, 10, 0), "MedicareAdvantage", "SUBM-NORTHWELL", "ePC02", "succeeded", 1},
-			            {"SUB-1009", #datetime(2026, 4, 9, 8, 50, 0), "MIPS", "SUBM-ACME", "CMS122", "succeeded", 1},
-			            {"SUB-1010", #datetime(2026, 4, 21, 12, 15, 0), "Medicaid", "SUBM-CITYCLINIC", "CMS165", "succeeded", 1},
-			            {"SUB-1011", #datetime(2026, 5, 5, 9, 5, 0), "MIPS", "SUBM-BAYSTATE", "ePC02", "failed", 1},
-			            {"SUB-1012", #datetime(2026, 5, 18, 15, 25, 0), "MedicareAdvantage", "SUBM-NORTHWELL", "CMS122", "succeeded", 1},
-			            {"SUB-1013", #datetime(2026, 5, 29, 11, 0, 0), "MIPS", "SUBM-ACME", "CMS165", "succeeded", 1},
-			            {"SUB-1014", #datetime(2026, 6, 11, 10, 35, 0), "Medicaid", "SUBM-BAYSTATE", "CMS122", "succeeded", 1},
-			            {"SUB-1015", #datetime(2026, 6, 24, 14, 50, 0), "MIPS", "SUBM-CITYCLINIC", "ePC02", "succeeded", 1}
-			        }
-			    ),
-			    LiveData =
-			        let
-			            Source = Sql.Database(SqlServerName, SqlDatabaseName),
-			            Table = Source{[Schema="dq",Item="SubmissionHistory"]}[Data],
-			            WithCount = Table.AddColumn(Table, "RowCount", each 1, Int64.Type)
-			        in
-			            WithCount,
-			    Result = if UseSampleData then SampleData else LiveData
-			in
-			    Result
+				let
+				    SampleData = #table(
+				        type table [
+				            SubmissionId = text,
+				            ReceivedAtUtc = datetime,
+				            ProgramId = text,
+				            SubmitterId = text,
+				            MeasureId = text,
+					            CohortId = text,
+					            PayloadType = text,
+				            Status = text,
+				            RowCount = Int64.Type
+				        ],
+				        {
+					            {"SUB-1001", #datetime(2026, 1, 8, 9, 15, 0), "MIPS", "SUBM-ACME", "CMS122", "COHORT-01", "MeasureReport", "succeeded", 1},
+					            {"SUB-1002", #datetime(2026, 1, 15, 11, 40, 0), "MIPS", "SUBM-BAYSTATE", "CMS165", "COHORT-02", "MeasureReport", "succeeded", 1},
+					            {"SUB-1003", #datetime(2026, 2, 3, 8, 5, 0), "Medicaid", "SUBM-CITYCLINIC", "ePC02", "COHORT-03", "Bundle", "succeeded", 1},
+					            {"SUB-1004", #datetime(2026, 2, 12, 14, 20, 0), "MedicareAdvantage", "SUBM-NORTHWELL", "CMS122", "COHORT-04", "Bundle", "failed", 1},
+					            {"SUB-1005", #datetime(2026, 2, 27, 10, 0, 0), "MIPS", "SUBM-ACME", "CMS165", "COHORT-01", "MeasureReport", "succeeded", 1},
+					            {"SUB-1006", #datetime(2026, 3, 6, 9, 45, 0), "Medicaid", "SUBM-BAYSTATE", "CMS122", "COHORT-02", "Bundle", "succeeded", 1},
+					            {"SUB-1007", #datetime(2026, 3, 19, 13, 30, 0), "MIPS", "SUBM-CITYCLINIC", "CMS165", "COHORT-03", "MeasureReport", "pending", 1},
+					            {"SUB-1008", #datetime(2026, 3, 28, 16, 10, 0), "MedicareAdvantage", "SUBM-NORTHWELL", "ePC02", "COHORT-04", "Bundle", "succeeded", 1},
+					            {"SUB-1009", #datetime(2026, 4, 9, 8, 50, 0), "MIPS", "SUBM-ACME", "CMS122", "COHORT-01", "MeasureReport", "succeeded", 1},
+					            {"SUB-1010", #datetime(2026, 4, 21, 12, 15, 0), "Medicaid", "SUBM-CITYCLINIC", "CMS165", "COHORT-03", "Bundle", "succeeded", 1},
+					            {"SUB-1011", #datetime(2026, 5, 5, 9, 5, 0), "MIPS", "SUBM-BAYSTATE", "ePC02", "COHORT-02", "MeasureReport", "failed", 1},
+					            {"SUB-1012", #datetime(2026, 5, 18, 15, 25, 0), "MedicareAdvantage", "SUBM-NORTHWELL", "CMS122", "COHORT-04", "Bundle", "succeeded", 1},
+					            {"SUB-1013", #datetime(2026, 5, 29, 11, 0, 0), "MIPS", "SUBM-ACME", "CMS165", "COHORT-01", "MeasureReport", "succeeded", 1},
+					            {"SUB-1014", #datetime(2026, 6, 11, 10, 35, 0), "Medicaid", "SUBM-BAYSTATE", "CMS122", "COHORT-02", "Bundle", "succeeded", 1},
+					            {"SUB-1015", #datetime(2026, 6, 24, 14, 50, 0), "MIPS", "SUBM-CITYCLINIC", "ePC02", "COHORT-03", "MeasureReport", "succeeded", 1}
+				        }
+				    ),
+				    LiveData =
+				        let
+				            Source = Sql.Database(SqlServerName, SqlDatabaseName),
+				            Table = Source{[Schema="dq",Item="SubmissionHistory"]}[Data],
+				            WithCount = Table.AddColumn(Table, "RowCount", each 1, Int64.Type)
+				        in
+				            WithCount,
+				    Result = if UseSampleData then SampleData else LiveData
+				in
+				    Result

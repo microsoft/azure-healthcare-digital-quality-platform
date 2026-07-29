@@ -38,6 +38,21 @@
                       "Entity": "ProcessingEvents"
                     }
                   },
+                  "Property": "CorrelationId"
+                }
+              },
+              "queryRef": "ProcessingEvents.CorrelationId",
+              "nativeQueryRef": "CorrelationId",
+              "displayName": "Correlation"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "ProcessingEvents"
+                    }
+                  },
                   "Property": "EventType"
                 }
               },
@@ -53,11 +68,71 @@
                       "Entity": "ProcessingEvents"
                     }
                   },
+                  "Property": "SubmitterId"
+                }
+              },
+              "queryRef": "ProcessingEvents.SubmitterId",
+              "nativeQueryRef": "SubmitterId",
+              "displayName": "Submitter"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "ProcessingEvents"
+                    }
+                  },
+                  "Property": "MeasureId"
+                }
+              },
+              "queryRef": "ProcessingEvents.MeasureId",
+              "nativeQueryRef": "MeasureId",
+              "displayName": "Measure"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "ProcessingEvents"
+                    }
+                  },
                   "Property": "Status"
                 }
               },
               "queryRef": "ProcessingEvents.Status",
               "nativeQueryRef": "Status"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "ProcessingEvents"
+                    }
+                  },
+                  "Property": "LatencyMs"
+                }
+              },
+              "queryRef": "ProcessingEvents.LatencyMs",
+              "nativeQueryRef": "LatencyMs",
+              "displayName": "Latency (ms)"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "ProcessingEvents"
+                    }
+                  },
+                  "Property": "ErrorCode"
+                }
+              },
+              "queryRef": "ProcessingEvents.ErrorCode",
+              "nativeQueryRef": "ErrorCode",
+              "displayName": "Error Code"
             },
             {
               "field": {

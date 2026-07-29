@@ -1,3 +1,14 @@
 expression SqlServerName = "sql-rcv-cac-5o6t35lpdsx4i.database.windows.net" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+	lineageTag: 3e093af8-765a-41dc-9f7b-beb0230643a0
+
+	annotation PBI_ResultType = Text
+
 expression SqlDatabaseName = "dq_receiver_reporting" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+	lineageTag: 8283e150-e7b3-46f6-a48b-80d8426fef4e
+
+	annotation PBI_ResultType = Text
+
 expression UseSampleData = true meta [IsParameterQuery=true, Type="Logical", IsParameterQueryRequired=true]
+	lineageTag: c2457b5c-daf1-49ab-b9e1-2295b92c2ab9
+
+	annotation PBI_ResultType = Logical

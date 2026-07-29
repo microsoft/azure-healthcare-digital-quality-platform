@@ -1,0 +1,10 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "dataHeading",
+  "position": { "x": 652, "y": 116, "z": 10, "height": 45, "width": 596, "tabOrder": 5 },
+  "visual": {
+    "visualType": "textbox",
+    "objects": { "general": [{ "properties": { "paragraphs": [{ "textRuns": [{ "value": "Data, refresh, and interpretation", "textStyle": { "fontFamily": "Segoe UI Semibold", "fontSize": "18px", "color": "#112E51" } }], "horizontalTextAlignment": "left" }] } }] },
+    "visualContainerObjects": { "background": [{ "properties": { "show": { "expr": { "Literal": { "Value": "false" } } } } }], "border": [{ "properties": { "show": { "expr": { "Literal": { "Value": "false" } } } } }] }
+  }
+}

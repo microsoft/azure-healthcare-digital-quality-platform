@@ -1,0 +1,21 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "dataBody",
+  "position": { "x": 652, "y": 164, "z": 10, "height": 548, "width": 596, "tabOrder": 6 },
+  "visual": {
+    "visualType": "textbox",
+    "objects": { "general": [{ "properties": { "paragraphs": [
+      { "textRuns": [{ "value": "Azure SQL sources", "textStyle": { "fontFamily": "Segoe UI Semibold", "fontSize": "12px", "color": "#112E51" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "dq.SubmissionHistory - participation, status, program, submitter, measure, cohort, payload type, and received time.", "textStyle": { "fontFamily": "Segoe UI", "fontSize": "12px", "color": "#323A45" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "dq.MeasureReports - reported populations, report type, status, subject, measurement period, and received time.", "textStyle": { "fontFamily": "Segoe UI", "fontSize": "12px", "color": "#323A45" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "dq.ProcessingEvents - event status, correlation, latency, and machine-readable error context.", "textStyle": { "fontFamily": "Segoe UI", "fontSize": "12px", "color": "#323A45" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "Refresh behavior", "textStyle": { "fontFamily": "Segoe UI Semibold", "fontSize": "12px", "color": "#112E51" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "SqlServerName and SqlDatabaseName select Azure SQL. UseSampleData chooses built-in demonstration rows or live SQL data. Source control keeps UseSampleData = true; set it to false only after credentials, managed identity access, and refresh are validated.", "textStyle": { "fontFamily": "Segoe UI", "fontSize": "12px", "color": "#323A45" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "Interpretation notes", "textStyle": { "fontFamily": "Segoe UI Semibold", "fontSize": "12px", "color": "#112E51" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "Compare weighted reported rates within one measure. Population definitions and whether higher or lower is favorable differ across measures.", "textStyle": { "fontFamily": "Segoe UI", "fontSize": "12px", "color": "#323A45" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "Do not treat the reported rate as a cross-measure composite or overall quality score.", "textStyle": { "fontFamily": "Segoe UI Semibold", "fontSize": "12px", "color": "#CD2026" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "This report does not calculate MIPS final score, benchmark points, eligibility, targeted review, or payment adjustment. Those outcomes require additional source data and program rules.", "textStyle": { "fontFamily": "Segoe UI", "fontSize": "12px", "color": "#323A45" } }], "horizontalTextAlignment": "left" }
+    ] } }] },
+    "visualContainerObjects": { "background": [{ "properties": { "show": { "expr": { "Literal": { "Value": "false" } } } } }], "border": [{ "properties": { "show": { "expr": { "Literal": { "Value": "false" } } } } }] }
+  }
+}

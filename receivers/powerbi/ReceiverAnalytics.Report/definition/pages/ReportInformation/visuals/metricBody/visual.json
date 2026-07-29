@@ -1,0 +1,19 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "metricBody",
+  "position": { "x": 32, "y": 164, "z": 10, "height": 548, "width": 572, "tabOrder": 4 },
+  "visual": {
+    "visualType": "textbox",
+    "objects": { "general": [{ "properties": { "paragraphs": [
+      { "textRuns": [{ "value": "Receiver Analytics summarizes operational health and reported quality-measure activity for the Receivers stack. It is an operations and quality view, not a payment-scoring application.", "textStyle": { "fontFamily": "Segoe UI", "fontSize": "12px", "color": "#323A45" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "Total submissions. ", "textStyle": { "fontFamily": "Segoe UI Semibold", "fontSize": "12px", "color": "#112E51" } }, { "value": "Receiver submission records in the current filter context.", "textStyle": { "fontFamily": "Segoe UI", "fontSize": "12px", "color": "#323A45" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "Active submitters. ", "textStyle": { "fontFamily": "Segoe UI Semibold", "fontSize": "12px", "color": "#112E51" } }, { "value": "Distinct submitting organizations represented by receiver submissions.", "textStyle": { "fontFamily": "Segoe UI", "fontSize": "12px", "color": "#323A45" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "Acceptance rate. ", "textStyle": { "fontFamily": "Segoe UI Semibold", "fontSize": "12px", "color": "#112E51" } }, { "value": "Share of submissions recorded as accepted or successfully completed.", "textStyle": { "fontFamily": "Segoe UI", "fontSize": "12px", "color": "#323A45" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "Processing success rate. ", "textStyle": { "fontFamily": "Segoe UI Semibold", "fontSize": "12px", "color": "#112E51" } }, { "value": "Share of receiver processing events that completed successfully.", "textStyle": { "fontFamily": "Segoe UI", "fontSize": "12px", "color": "#323A45" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "Submission trend. ", "textStyle": { "fontFamily": "Segoe UI Semibold", "fontSize": "12px", "color": "#112E51" } }, { "value": "Submission volume over the persisted received timestamp.", "textStyle": { "fontFamily": "Segoe UI", "fontSize": "12px", "color": "#323A45" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "Weighted reported rate. ", "textStyle": { "fontFamily": "Segoe UI Semibold", "fontSize": "12px", "color": "#112E51" } }, { "value": "Total numerator divided by total denominator within each measure; hover for population totals.", "textStyle": { "fontFamily": "Segoe UI", "fontSize": "12px", "color": "#323A45" } }], "horizontalTextAlignment": "left" },
+      { "textRuns": [{ "value": "Operations table. ", "textStyle": { "fontFamily": "Segoe UI Semibold", "fontSize": "12px", "color": "#112E51" } }, { "value": "Recent events with correlation, submitter, measure, status, latency, and error context.", "textStyle": { "fontFamily": "Segoe UI", "fontSize": "12px", "color": "#323A45" } }], "horizontalTextAlignment": "left" }
+    ] } }] },
+    "visualContainerObjects": { "background": [{ "properties": { "show": { "expr": { "Literal": { "Value": "false" } } } } }], "border": [{ "properties": { "show": { "expr": { "Literal": { "Value": "false" } } } } }] }
+  }
+}

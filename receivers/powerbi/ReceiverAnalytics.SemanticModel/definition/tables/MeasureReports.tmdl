@@ -1,84 +1,193 @@
 table MeasureReports
 	lineageTag: measure-reports
 
+	/// Unweighted average of persisted report-level performance rates. Prefer Weighted reported rate for aggregated analysis within a measure.
 	measure 'Performance rate' = AVERAGE('MeasureReports'[PerformanceRate])
 		formatString: 0.0%
+		displayFolder: Measure Performance
+		lineageTag: 4b45a576-29ca-42cc-8c7e-53878235f5c4
+
+	/// Distinct measure reports received by the receiver in the current filter context.
+	measure 'Measure reports' = DISTINCTCOUNT('MeasureReports'[MeasureReportId])
+		formatString: #,##0
+		displayFolder: Measure Performance
+		lineageTag: ef934365-a285-4ee0-bd1b-65bac44902fd
+
+	/// Sum of reported numerator populations. Interpret within a selected measure because population semantics differ by measure.
+	measure 'Total numerator' = SUM('MeasureReports'[Numerator])
+		formatString: #,##0
+		displayFolder: Measure Performance
+		lineageTag: 1218538b-62fc-42b2-93d1-bc3d3f0f49f1
+
+	/// Sum of reported denominator populations. Interpret within a selected measure because population semantics differ by measure.
+	measure 'Total denominator' = SUM('MeasureReports'[Denominator])
+		formatString: #,##0
+		displayFolder: Measure Performance
+		lineageTag: 7a20daa3-abbf-461a-8680-921f7602b14f
+
+	/// Sum of reported denominator exclusions.
+	measure 'Total exclusions' = SUM('MeasureReports'[Exclusions])
+		formatString: #,##0
+		displayFolder: Measure Performance
+		lineageTag: d2553a77-52e6-43fc-9573-85ce626b9f64
+
+	/// Reported exclusions divided by the reported denominator in the current filter context.
+	measure 'Exclusion rate' =
+			DIVIDE(
+			    [Total exclusions],
+			    [Total denominator]
+			)
+		formatString: 0.0%
+		displayFolder: Measure Performance
+		lineageTag: 40e6ea3c-5302-4836-bf6f-3f198bdcd41a
+
+	/// Denominator-weighted reported performance rate. Compare within one measure; do not interpret as a cross-measure composite score.
+	measure 'Weighted reported rate' =
+			DIVIDE(
+			    [Total numerator],
+			    [Total denominator]
+			)
+		formatString: 0.0%
+		displayFolder: Measure Performance
+		lineageTag: a38cbe1c-bec2-4992-9791-530d13af979f
+
+	/// Measure reports whose denominator is blank or zero and therefore cannot produce a meaningful reported rate.
+	measure 'Reports with missing denominator' =
+			CALCULATE(
+			    [Measure reports],
+			    KEEPFILTERS(
+			        ISBLANK('MeasureReports'[Denominator])
+			            || 'MeasureReports'[Denominator] = 0
+			    )
+			)
+		formatString: #,##0
+		displayFolder: Data Quality
+		lineageTag: 0b5a159d-065a-4221-930b-91a7af5dc260
 
 	column MeasureReportId
 		dataType: string
+		lineageTag: e41193f7-9f4f-4b54-86eb-56e63f3072cc
 		sourceColumn: MeasureReportId
+
+	column SubmissionId
+		dataType: string
+		lineageTag: 36885c1e-9b1e-480f-89ec-0d3977d84bd6
+		summarizeBy: none
+		sourceColumn: SubmissionId
 
 	column MeasureId
 		dataType: string
+		lineageTag: f104f78e-22b8-4b97-adfe-4411ac6e3b9e
 		sourceColumn: MeasureId
 
 	column SubmitterId
 		dataType: string
+		lineageTag: 7a4395a9-8c86-49b0-ac36-269ff1d437ff
 		sourceColumn: SubmitterId
 
 	column ProgramId
 		dataType: string
+		lineageTag: dc6a51c4-b590-4a7b-ae08-8883333b0468
 		sourceColumn: ProgramId
+
+	column SubjectId
+		dataType: string
+		lineageTag: 2cd96693-d718-4fd8-a50f-3bbe957d2d09
+		summarizeBy: none
+		sourceColumn: SubjectId
+
+	column ReportType
+		dataType: string
+		lineageTag: cc5e9bfb-a4e8-4f23-8c0d-d66f74c9f937
+		summarizeBy: none
+		sourceColumn: ReportType
+
+	column Status
+		dataType: string
+		lineageTag: b3d64377-43bf-4215-9afc-8146277ab9bb
+		summarizeBy: none
+		sourceColumn: Status
+
+	column ReceivedAtUtc
+		dataType: dateTime
+		lineageTag: a262477e-cd21-48a1-b82f-11670227babf
+		sourceColumn: ReceivedAtUtc
 
 	column PeriodStart
 		dataType: dateTime
+		lineageTag: 08dbe534-a520-4949-8627-889f7b2f58ad
 		sourceColumn: PeriodStart
 
 	column PeriodEnd
 		dataType: dateTime
+		lineageTag: 61eda3fd-422d-406c-ad27-d38b8df1dd8b
 		sourceColumn: PeriodEnd
 
 	column Numerator
 		dataType: int64
+		lineageTag: 2fc6b870-afc9-4c76-812e-b8d2ef8d64b6
 		sourceColumn: Numerator
 
 	column Denominator
 		dataType: int64
+		lineageTag: e90756c1-169f-4d61-8a9d-0d4318116c91
 		sourceColumn: Denominator
 
 	column Exclusions
 		dataType: int64
+		lineageTag: 736e8420-848c-4d8d-9727-21d83e3e71a0
 		sourceColumn: Exclusions
 
 	column PerformanceRate
-		dataType: decimal
+		dataType: double
+		lineageTag: 8de55974-6257-4253-bbd3-fc461d2db746
+		summarizeBy: sum
 		sourceColumn: PerformanceRate
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
 
 	partition MeasureReports = m
 		mode: import
 		source =
-			let
-			    SampleData = #table(
-			        type table [
-			            MeasureReportId = text,
-			            MeasureId = text,
-			            SubmitterId = text,
-			            ProgramId = text,
-			            PeriodStart = datetime,
-			            PeriodEnd = datetime,
-			            Numerator = Int64.Type,
-			            Denominator = Int64.Type,
-			            Exclusions = Int64.Type,
-			            PerformanceRate = number
-			        ],
-			        {
-			            {"MR-2001", "CMS122", "SUBM-ACME", "MIPS", #datetime(2026, 1, 1, 0, 0, 0), #datetime(2026, 3, 31, 0, 0, 0), 18, 120, 8, 0.150},
-			            {"MR-2002", "CMS165", "SUBM-BAYSTATE", "MIPS", #datetime(2026, 1, 1, 0, 0, 0), #datetime(2026, 3, 31, 0, 0, 0), 95, 130, 6, 0.731},
-			            {"MR-2003", "ePC02", "SUBM-CITYCLINIC", "Medicaid", #datetime(2026, 1, 1, 0, 0, 0), #datetime(2026, 3, 31, 0, 0, 0), 4, 210, 12, 0.019},
-			            {"MR-2004", "CMS122", "SUBM-NORTHWELL", "MedicareAdvantage", #datetime(2026, 1, 1, 0, 0, 0), #datetime(2026, 3, 31, 0, 0, 0), 22, 140, 10, 0.157},
-			            {"MR-2005", "CMS165", "SUBM-ACME", "MIPS", #datetime(2026, 4, 1, 0, 0, 0), #datetime(2026, 6, 30, 0, 0, 0), 108, 135, 7, 0.800},
-			            {"MR-2006", "CMS122", "SUBM-BAYSTATE", "Medicaid", #datetime(2026, 4, 1, 0, 0, 0), #datetime(2026, 6, 30, 0, 0, 0), 16, 118, 9, 0.136},
-			            {"MR-2007", "CMS165", "SUBM-CITYCLINIC", "MIPS", #datetime(2026, 4, 1, 0, 0, 0), #datetime(2026, 6, 30, 0, 0, 0), 88, 124, 5, 0.710},
-			            {"MR-2008", "ePC02", "SUBM-NORTHWELL", "MedicareAdvantage", #datetime(2026, 4, 1, 0, 0, 0), #datetime(2026, 6, 30, 0, 0, 0), 3, 175, 8, 0.017},
-			            {"MR-2009", "CMS122", "SUBM-ACME", "MIPS", #datetime(2026, 4, 1, 0, 0, 0), #datetime(2026, 6, 30, 0, 0, 0), 14, 122, 8, 0.115}
-			        }
-			    ),
-			    LiveData =
-			        let
-			            Source = Sql.Database(SqlServerName, SqlDatabaseName),
-			            Table = Source{[Schema="dq",Item="MeasureReports"]}[Data]
-			        in
-			            Table,
-			    Result = if UseSampleData then SampleData else LiveData
-			in
-			    Result
+				let
+				    SampleData = #table(
+				        type table [
+				            MeasureReportId = text,
+					            SubmissionId = text,
+				            MeasureId = text,
+				            SubmitterId = text,
+				            ProgramId = text,
+					            SubjectId = text,
+					            ReportType = text,
+					            Status = text,
+					            ReceivedAtUtc = datetime,
+				            PeriodStart = datetime,
+				            PeriodEnd = datetime,
+				            Numerator = Int64.Type,
+				            Denominator = Int64.Type,
+				            Exclusions = Int64.Type,
+				            PerformanceRate = number
+				        ],
+				        {
+					            {"MR-2001", "SUB-1001", "CMS122", "SUBM-ACME", "MIPS", "PAT-1001", "individual", "complete", #datetime(2026, 1, 8, 9, 16, 0), #datetime(2026, 1, 1, 0, 0, 0), #datetime(2026, 3, 31, 0, 0, 0), 18, 120, 8, 0.150},
+					            {"MR-2002", "SUB-1002", "CMS165", "SUBM-BAYSTATE", "MIPS", "GROUP-1002", "subject-list", "complete", #datetime(2026, 1, 15, 11, 41, 0), #datetime(2026, 1, 1, 0, 0, 0), #datetime(2026, 3, 31, 0, 0, 0), 95, 130, 6, 0.731},
+					            {"MR-2003", "SUB-1003", "ePC02", "SUBM-CITYCLINIC", "Medicaid", "GROUP-1003", "summary", "complete", #datetime(2026, 2, 3, 8, 6, 0), #datetime(2026, 1, 1, 0, 0, 0), #datetime(2026, 3, 31, 0, 0, 0), 4, 210, 12, 0.019},
+					            {"MR-2004", "SUB-1004", "CMS122", "SUBM-NORTHWELL", "MedicareAdvantage", "GROUP-1004", "subject-list", "complete", #datetime(2026, 2, 12, 14, 21, 0), #datetime(2026, 1, 1, 0, 0, 0), #datetime(2026, 3, 31, 0, 0, 0), 22, 140, 10, 0.157},
+					            {"MR-2005", "SUB-1005", "CMS165", "SUBM-ACME", "MIPS", "PAT-1005", "individual", "complete", #datetime(2026, 2, 27, 10, 1, 0), #datetime(2026, 4, 1, 0, 0, 0), #datetime(2026, 6, 30, 0, 0, 0), 108, 135, 7, 0.800},
+					            {"MR-2006", "SUB-1006", "CMS122", "SUBM-BAYSTATE", "Medicaid", "GROUP-1006", "summary", "complete", #datetime(2026, 3, 6, 9, 46, 0), #datetime(2026, 4, 1, 0, 0, 0), #datetime(2026, 6, 30, 0, 0, 0), 16, 118, 9, 0.136},
+					            {"MR-2007", "SUB-1007", "CMS165", "SUBM-CITYCLINIC", "MIPS", "GROUP-1007", "subject-list", "complete", #datetime(2026, 3, 19, 13, 31, 0), #datetime(2026, 4, 1, 0, 0, 0), #datetime(2026, 6, 30, 0, 0, 0), 88, 124, 5, 0.710},
+					            {"MR-2008", "SUB-1008", "ePC02", "SUBM-NORTHWELL", "MedicareAdvantage", "PAT-1008", "individual", "complete", #datetime(2026, 3, 28, 16, 11, 0), #datetime(2026, 4, 1, 0, 0, 0), #datetime(2026, 6, 30, 0, 0, 0), 3, 175, 8, 0.017},
+					            {"MR-2009", "SUB-1009", "CMS122", "SUBM-ACME", "MIPS", "GROUP-1009", "summary", "complete", #datetime(2026, 4, 9, 8, 51, 0), #datetime(2026, 4, 1, 0, 0, 0), #datetime(2026, 6, 30, 0, 0, 0), 14, 122, 8, 0.115}
+				        }
+				    ),
+				    LiveData =
+				        let
+				            Source = Sql.Database(SqlServerName, SqlDatabaseName),
+				            Table = Source{[Schema="dq",Item="MeasureReports"]}[Data]
+				        in
+				            Table,
+				    Result = if UseSampleData then SampleData else LiveData
+				in
+				    Result

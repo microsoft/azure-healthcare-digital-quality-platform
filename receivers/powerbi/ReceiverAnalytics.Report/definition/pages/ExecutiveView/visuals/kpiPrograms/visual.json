@@ -23,11 +23,11 @@
                       "Entity": "SubmissionHistory"
                     }
                   },
-                  "Property": "Programs onboarded"
+                  "Property": "Acceptance rate"
                 }
               },
-              "queryRef": "SubmissionHistory.Programs onboarded",
-              "nativeQueryRef": "Programs onboarded"
+              "queryRef": "SubmissionHistory.Acceptance rate",
+              "nativeQueryRef": "Acceptance rate"
             }
           ]
         }

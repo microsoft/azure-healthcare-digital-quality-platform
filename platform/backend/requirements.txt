@@ -9,8 +9,8 @@ opentelemetry-api
 opentelemetry-instrumentation
 opentelemetry-instrumentation-fastapi
 opentelemetry-sdk
-prompty
-prompty[azure]==0.1.40
+prompty==2.0.0b2
+prompty[azure]==2.0.0b2==0.1.40
 pydantic
 python-dotenv==1.0.1
 PyJWT[crypto]

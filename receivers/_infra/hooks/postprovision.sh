@@ -14,6 +14,7 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RECEIVERS_DIR="$(cd "$HOOK_DIR/../.." && pwd)"
 BACKEND_ENV="$RECEIVERS_DIR/backend/.env"
 FRONTEND_PROD_ENV="$RECEIVERS_DIR/frontend/.env.production"
+ORCHESTRATOR_ENV="$RECEIVERS_DIR/orchestrator/.env"
 
 echo "Loading azd env values..."
 declare -A ENV_VALUES=()
@@ -55,6 +56,8 @@ SQL_SERVER_NAME="$(get_env AZURE_SQL_SERVER_NAME)"
 SQL_DATABASE_NAME="$(get_env AZURE_SQL_DATABASE_NAME)"
 SQL_SERVER_FQDN="$(get_env AZURE_SQL_SERVER_FQDN)"
 SQL_CONNECTION_STRING="$(get_env AZURE_SQL_CONNECTION_STRING)"
+DATABASE_URL="$(get_env DATABASE_URL)"
+POSTGRES_PASSWORD="$(get_env POSTGRES_ADMINISTRATOR_PASSWORD)"
 
 COSMOS_HOST="${COSMOS_ENDPOINT#https://}"
 COSMOS_HOST="${COSMOS_HOST#http://}"
@@ -91,12 +94,21 @@ AZURE_SQL_SERVER_FQDN="$SQL_SERVER_FQDN"
 AZURE_SQL_CONNECTION_STRING="$SQL_CONNECTION_STRING"
 RECEIVER_REPORTING_SQL_ENABLED=true
 
+# PostgreSQL CQL execution database
+DATABASE_URL="$DATABASE_URL"
+PGPASSWORD="$POSTGRES_PASSWORD"
+
 # APIM (kept for parity with providers/submitters)
 APIM_GATEWAY_URL="$APIM_GATEWAY"
 
 # Local-dev MSAL bypass; never enable in prod
 DEVELOPMENT_MODE=true
 EOF
+
+if [[ -f "$ORCHESTRATOR_ENV" || -d "$RECEIVERS_DIR/orchestrator" ]]; then
+  cp "$BACKEND_ENV" "$ORCHESTRATOR_ENV"
+  echo "Writing $ORCHESTRATOR_ENV"
+fi
 
 if [[ -f "$FRONTEND_PROD_ENV" ]]; then
   echo "Updating $FRONTEND_PROD_ENV (refreshed VITE_APIM_GATEWAY_URL)"

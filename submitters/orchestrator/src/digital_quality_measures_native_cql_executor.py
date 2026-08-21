@@ -1,11 +1,9 @@
-"""Deterministic CQL executor backed by the ms-cql-sdk runtime.
+"""Deterministic CQL executor backed by ms-cql-sdk and PostgreSQL.
 
-Replaces the prior regex-based interpreter. All measure logic now derives
-from compiling each measure's CQL source to ELM via
-``cql_sdk.compiler.cql_to_elm.translate`` and invoking the resulting library
-through ``cql_sdk.invocation.InvocationToolkit`` on a
-:class:`RuntimeContext` constructed from the orchestrator's FHIR context
-dict.
+Measure CQL is parsed to the SDK's internal ELM representation, compiled to
+parameterized SQL, and evaluated over PostgreSQL FHIR JSONB resources. The
+in-memory invocation toolkit remains a compatibility fallback when
+``DATABASE_URL`` is not configured.
 """
 
 from __future__ import annotations
@@ -24,6 +22,7 @@ from cql_sdk.elm.serialization.loader import (
 )
 from cql_sdk.fhir.context import context_from_bundle as _sdk_context_from_bundle
 from cql_sdk.invocation.toolkit import InvocationToolkit
+from cql_sdk.postgres import PostgresExecutor, PostgresFHIRStore
 from cql_sdk.runtime.intervals import Interval as _SdkInterval
 
 _logger = logging.getLogger(__name__)
@@ -40,17 +39,16 @@ _logger = logging.getLogger(__name__)
 #   * collapsed/in-tree copy under the platform repo itself
 #     (parents[3] when the SDK has been vendored into this repo)
 def _default_value_sets_dir() -> Optional[Path]:
-    here = Path(__file__).resolve()
-    parents = here.parents
-    candidates = []
-    for depth in (4, 3):
-        if depth < len(parents):
-            candidates.append(
-                parents[depth] / "azure-healthcare-digital-quality-cql-sdk" / "tests" / "fixtures" / "valuesets"
-            )
-    for c in candidates:
-        if c.exists():
-            return c
+    for parent in Path(__file__).resolve().parents:
+        candidate = (
+            parent
+            / "azure-healthcare-digital-quality-cql-sdk"
+            / "tests"
+            / "fixtures"
+            / "valuesets"
+        )
+        if candidate.is_dir():
+            return candidate
     return None
 
 
@@ -179,7 +177,7 @@ class _PopulationOutcomes:
 
 
 class CQLExecutor:
-    """SDK-backed CQL executor for project measures.
+    """PostgreSQL-backed CQL executor for project measures.
 
     The constructor accepts an optional ``value_sets_dir`` override. When
     omitted, the executor falls back to the ``CQL_VALUE_SETS_DIR`` environment
@@ -203,6 +201,18 @@ class CQLExecutor:
             _logger.info("CQLExecutor: terminology loaded from %s", self._value_sets_dir)
         self._toolkit = InvocationToolkit()
         self._library_cache: Dict[str, Any] = {}
+        self._database_url = os.environ.get("DATABASE_URL")
+        self._postgres_store: Optional[PostgresFHIRStore] = None
+        self._postgres_executor: Optional[PostgresExecutor] = None
+        if self._database_url:
+            self._postgres_store = PostgresFHIRStore(database_url=self._database_url)
+            self._postgres_store.initialize()
+            terminology_count = self._postgres_store.load_value_sets(self._value_sets_dir)
+            self._postgres_executor = PostgresExecutor(database_url=self._database_url)
+            _logger.info(
+                "CQLExecutor: PostgreSQL execution enabled with %d terminology codes",
+                terminology_count,
+            )
 
     def evaluate(
         self,
@@ -224,19 +234,23 @@ class CQLExecutor:
 
         library = self._compile_library(cql_text)
         bundle = _build_bundle(context)
-        ctx = _sdk_context_from_bundle(
-            bundle,
-            value_sets_dir=self._value_sets_dir,
-        )
-
-        # The ``InvocationToolkit`` cache keys on ``(library, definition,
-        # parameters)`` only — not on the runtime context. Reusing the kit
-        # across different patients would leak results, so we clear the cache
-        # before evaluating every measure run.
-        self._toolkit.clear_cache()
-
         parameters = self._build_parameter_overrides(library, mp_start, mp_end)
-        outcomes = self._invoke_populations(library, ctx, parameters)
+        if self._postgres_store is not None and self._postgres_executor is not None:
+            patient = context.get("patient") or {}
+            patient_id = patient.get("id")
+            if not isinstance(patient_id, str) or not patient_id:
+                raise ValueError("PostgreSQL CQL execution requires patient.id")
+            self._postgres_store.replace_patient_bundle(patient_id, bundle)
+            outcomes = self._invoke_populations_postgres(library, parameters, patient_id)
+            execution_engine = "postgresql"
+        else:
+            ctx = _sdk_context_from_bundle(
+                bundle,
+                value_sets_dir=self._value_sets_dir,
+            )
+            self._toolkit.clear_cache()
+            outcomes = self._invoke_populations(library, ctx, parameters)
+            execution_engine = "python"
         evidence = self._build_evidence_trace(context, outcomes)
         exclusion_reasons = ["Denominator Exclusions evaluated true"] if outcomes.denominator_exclusion else []
         numerator_reasons = self._derive_numerator_reasons(meta, outcomes)
@@ -256,6 +270,7 @@ class CQLExecutor:
 
         detail: Dict[str, Any] = {
             "library": f"{library.identifier.id}v{library.identifier.version or '1.0.0'}",
+            "execution_engine": execution_engine,
             "raw_populations": {
                 name: self._describe_value(value) for name, value in outcomes.raw.items()
             },
@@ -364,6 +379,42 @@ class CQLExecutor:
                 outcomes.invocation_errors[definition] = f"{type(exc).__name__}: {exc}"
                 outcomes.raw[definition] = None
                 _logger.debug("Invocation of %s failed: %s", definition, exc)
+                continue
+            outcomes.raw[definition] = value
+            if definition == "Initial Population":
+                outcomes.in_initial_population = _truthy(value)
+            elif definition == "Denominator":
+                outcomes.in_denominator = _truthy(value)
+            elif definition == "Denominator Exclusions":
+                outcomes.denominator_exclusion = _truthy(value)
+            elif definition == "Numerator":
+                outcomes.in_numerator = _truthy(value)
+        return outcomes
+
+    def _invoke_populations_postgres(
+        self,
+        library: Any,
+        parameters: Dict[str, Any],
+        patient_id: str,
+    ) -> _PopulationOutcomes:
+        if self._postgres_executor is None:
+            raise RuntimeError("PostgreSQL CQL executor is not configured")
+        outcomes = _PopulationOutcomes()
+        for definition in _POPULATION_DEFINITIONS:
+            if definition not in library.definitions:
+                outcomes.raw[definition] = None
+                continue
+            try:
+                value = self._postgres_executor.execute(
+                    library,
+                    definition=definition,
+                    parameters=parameters,
+                    patient_id=patient_id,
+                )
+            except Exception as exc:  # pylint: disable=broad-except
+                outcomes.invocation_errors[definition] = f"{type(exc).__name__}: {exc}"
+                outcomes.raw[definition] = None
+                _logger.exception("PostgreSQL invocation of %s failed", definition)
                 continue
             outcomes.raw[definition] = value
             if definition == "Initial Population":

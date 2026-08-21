@@ -73,25 +73,38 @@ Bundle.
 
 ## Compare execution performance
 
-Benchmark the same CQL definition and patient Bundle in the running AKS pod
-using both the in-memory SDK runtime and precompiled PostgreSQL SQL:
+For architecture and capacity decisions, benchmark whole-cohort SQL against
+the complete per-patient in-memory pipeline:
+
+```powershell
+./database/compare-cql-cohort-performance.ps1 `
+	-Stack receivers `
+	-CohortSizes 10000,100000 `
+	-ProjectionPatientCounts 5000000,6000000 `
+	-Iterations 3 `
+	-OutputPath ./tmp/cms122-cohort-performance.json
+```
+
+The script creates an isolated unlogged benchmark schema from the repository's
+CMS122 sample. For each cohort size, PostgreSQL evaluates all patients in one
+correlated SQL statement and returns aggregate counts. The in-memory path
+transfers all FHIR JSONB resources into a dedicated AKS benchmark pod, groups
+patient Bundles, and invokes CQL once per patient. Results must match before
+timings are accepted. The largest measured cohort throughput is projected to
+5M and 6M daily lives.
+
+Use the original script only to investigate single-patient latency:
 
 ```powershell
 ./database/compare-cql-performance.ps1 -Stack receivers
-
 ./database/compare-cql-performance.ps1 `
 	-Stack submitters `
 	-Measure CMS165v9_ControllingHighBloodPressure.cql `
-	-Definition Numerator `
-	-Iterations 250 `
-	-OutputPath ./tmp/cms165-performance.json
+	-Definition Numerator
 ```
 
-The report includes UTC start/end times, setup costs, mean/median/p95/min/max
-latency, per-engine throughput, result equivalence, and projections for 1, 5,
-and 10 million patients at 1, 10, and 100 idealized parallel workers. These
-are linear extrapolations from repeated single-patient execution, not a
-substitute for a concurrent load test or a set-based cohort SQL benchmark.
+Single-patient round-trip projections are not evidence of cohort scalability
+and should not be used to choose the production execution model.
 
 ## Azure
 

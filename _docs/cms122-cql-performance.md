@@ -60,7 +60,7 @@ The schema was dropped after the benchmark.
 
 ## Measured cohort results
 
-### MultiCare 10,000-life population
+### 10,000-life population
 
 | Engine | Mean | Median | p95 | Throughput |
 |---|---:|---:|---:|---:|
@@ -70,7 +70,7 @@ The schema was dropped after the benchmark.
 PostgreSQL was **4.60× faster**. Both engines returned 10,000 total and 7,500
 matched patients.
 
-### MultiCare 100,000-life population
+### 100,000-life population
 
 | Engine | Mean | Median | p95 | Throughput |
 |---|---:|---:|---:|---:|
@@ -86,7 +86,7 @@ amortized. In-memory throughput stayed near 3,100 patients/s because it scales
 with resource transfer, JSON hydration, Bundle grouping, and one SDK invocation
 per patient.
 
-## Humana daily-volume projection
+## Multi-million-life daily-volume projection
 
 These projections use measured throughput from the 100,000-life run on the
 same single benchmark pod and database. No idealized worker multiplier is

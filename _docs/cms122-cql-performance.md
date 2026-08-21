@@ -102,6 +102,30 @@ inside a 24-hour processing window. Production sizing must still include all
 measures, multiple populations per measure, retries, source-data refresh,
 result persistence, and concurrent tenants.
 
+### Larger population projections
+
+The following estimates linearly scale the observed 100,000-life mean and p95
+durations. "p95 basis" means the projection uses the slowest measured p95
+cohort duration; it is not a statistical p95 prediction for the complete
+larger run.
+
+| Population | PostgreSQL mean | PostgreSQL p95 basis | Per-patient in-memory mean | In-memory p95 basis |
+|---:|---:|---:|---:|---:|
+| 10,000,000 | **10.82 min** | 12.97 min | 53.62 min | 54.93 min |
+| 100,000,000 | **1.80 hr** | 2.16 hr | 8.94 hr | 9.15 hr |
+| 350,000,000 | **6.31 hr** | 7.57 hr | 31.28 hr / 1.30 days | 32.04 hr / 1.33 days |
+
+At 350 million lives, the synthetic cohort shape corresponds to approximately
+1.575 billion FHIR resources. The SQL estimate remains inside an eight-hour
+window for this one CMS122 population definition, while the per-patient
+in-memory pipeline exceeds a full day. This supports PostgreSQL cohort SQL as
+the scaling direction, but it is not yet production capacity proof.
+
+These figures cover one population definition. A production quality program
+evaluates multiple definitions and measures. Do not multiply this table
+blindly: consolidated SQL can share cohort filters and common subexpressions,
+whereas separate definition executions repeat work.
+
 ## Why the first benchmark was misleading
 
 The original report measured one already-hydrated patient repeatedly:
@@ -149,7 +173,7 @@ Run the decision-grade cohort benchmark:
 ./database/compare-cql-cohort-performance.ps1 `
   -Stack receivers `
   -CohortSizes 10000,100000 `
-  -ProjectionPatientCounts 5000000,6000000 `
+  -ProjectionPatientCounts 5000000,6000000,10000000,100000000,350000000 `
   -Iterations 3 `
   -WarmupIterations 1 `
   -CpuRequest 2 `
@@ -169,7 +193,9 @@ Raw reports:
   code-distribution, and selectivity variance.
 - Only one measure definition was benchmarked. A production run evaluates
   several populations across many measures.
-- The 5M/6M figures linearly extrapolate throughput measured at 100k lives.
+- All larger-population figures linearly extrapolate throughput measured at
+  100k lives; physically test at least 1M and 10M lives before production
+  sizing.
 - The test does not model concurrent customers, connection-pool contention,
   autoscaling delays, PostgreSQL throttling, or downstream result writes.
 - Unlogged benchmark tables differ from durable production tables for writes;

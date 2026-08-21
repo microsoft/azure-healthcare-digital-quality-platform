@@ -18,13 +18,13 @@
       "value": "${APIM_VNET_MODE=External}"
     },
     "aksSystemNodePoolVmSize": {
-      "value": "${AKS_SYSTEM_NODEPOOL_VM_SIZE=Standard_D2s_v6}"
+      "value": "${AKS_SYSTEM_NODEPOOL_VM_SIZE=Standard_D4ds_v5}"
     },
     "aksSystemNodePoolName": {
-      "value": "${AKS_SYSTEM_NODEPOOL_NAME=sys3}"
+      "value": "${AKS_SYSTEM_NODEPOOL_NAME=sysd4}"
     },
     "aksSystemNodePoolCount": {
-      "value": "${AKS_SYSTEM_NODEPOOL_COUNT=1}"
+      "value": "${AKS_SYSTEM_NODEPOOL_COUNT=2}"
     },
     "enableFoundryModelDeployments": {
       "value": "${ENABLE_FOUNDRY_MODEL_DEPLOYMENTS=true}"
@@ -52,6 +52,27 @@
     },
     "developerIpAddress": {
       "value": "${DEVELOPER_IP_ADDRESS=}"
+    },
+    "postgresDatabaseName": {
+      "value": "${POSTGRES_DATABASE_NAME=dq_submitters}"
+    },
+    "postgresLocation": {
+      "value": "${POSTGRES_LOCATION=centralus}"
+    },
+    "postgresAdministratorLogin": {
+      "value": "${POSTGRES_ADMINISTRATOR_LOGIN=dqadmin}"
+    },
+    "postgresAdministratorPassword": {
+      "value": "${POSTGRES_ADMINISTRATOR_PASSWORD}"
+    },
+    "postgresSkuName": {
+      "value": "${POSTGRES_SKU_NAME=Standard_B1ms}"
+    },
+    "postgresSkuTier": {
+      "value": "${POSTGRES_SKU_TIER=Burstable}"
+    },
+    "postgresStorageSizeGB": {
+      "value": "${POSTGRES_STORAGE_SIZE_GB=32}"
     },
     "defenderEnabled": {
       "value": "${DEFENDER_ENABLED=true}"

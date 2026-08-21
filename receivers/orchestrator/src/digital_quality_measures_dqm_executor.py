@@ -49,12 +49,11 @@ def _default_packages_dir() -> Optional[Path]:
     if override:
         p = Path(override)
         return p if p.exists() else None
-    here = Path(__file__).resolve()
-    candidates = [
-        here.parents[3] / "_measures" / "packages",  # repo root (monorepo)
-        Path("/app/_measures/packages"),  # container layout
-        here.parents[2] / "_measures" / "packages",  # vendored/in-tree
-    ]
+    candidates = [Path("/app/measures/packages")]
+    candidates.extend(
+        parent / "_measures" / "packages"
+        for parent in Path(__file__).resolve().parents
+    )
     for c in candidates:
         if c.is_dir():
             return c

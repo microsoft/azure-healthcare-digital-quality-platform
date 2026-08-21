@@ -131,6 +131,19 @@ spec:
         - name: COSMOSDB_DATABASE_NAME
           value: "${COSMOSDB_DATABASE_NAME}"
         # =========================================
+        # PostgreSQL CQL Execution
+        # =========================================
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: orchestrator-postgres
+              key: DATABASE_URL
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: orchestrator-postgres
+              key: PGPASSWORD
+        # =========================================
         # Agent Learning Configuration (policy-bandit RL)
         # =========================================
         - name: AGENT_LEARNING_DATABASE_NAME

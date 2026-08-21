@@ -1,5 +1,6 @@
 # Runs the receivers stack of the Azure Healthcare Digital Quality
 # accelerator locally:
+#   * postgres      - PostgreSQL store for SQL-backed CQL execution
 #   * orchestrator  - FastAPI / MCP engine for receiver-side workflows
 #   * backend       - FastAPI API + DEQM ingest router
 #   * frontend      - Nginx-served Vite/React UI
@@ -7,25 +8,51 @@
 # From receivers/:
 #   docker compose up --build
 #
-# NOTE (refactor-in-progress): the receivers Dockerfiles still COPY from
-# `submitters/<svc>/...` paths (lifted from the submitters tree). Build
-# contexts are therefore set to the repo root (`..`) so those COPYs
-# resolve. Once the receivers Dockerfiles are rewritten to reference
-# `receivers/<svc>/...`, the contexts can stay as-is; only the COPY paths
-# in the Dockerfiles need to change.
+# Build contexts use the repository root. The orchestrator also receives the
+# sibling CQL SDK as a named build context so local builds exercise the
+# un-released PostgreSQL backend.
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dq_receivers}
+      POSTGRES_USER: ${POSTGRES_USER:-dq}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dq}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../database/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - dq-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
   orchestrator:
     build:
       context: ..
-      dockerfile: receivers/orchestrator/Dockerfile
+      dockerfile: database/Dockerfile.orchestrator-local
+      args:
+        STACK: receivers
+      additional_contexts:
+        cql_sdk: ../../azure-healthcare-digital-quality-cql-sdk
     image: azure-healthcare-digital-quality-receivers-orchestrator:local
     env_file:
       - ./orchestrator/.env
     environment:
       - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-dq}@postgres:5432/${POSTGRES_DB:-dq_receivers}
+      - PGPASSWORD=${POSTGRES_PASSWORD:-dq}
     ports:
       - "8011:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - dq-net
     healthcheck:
@@ -73,3 +100,6 @@ services:
 networks:
   dq-net:
     driver: bridge
+
+volumes:
+  postgres-data:

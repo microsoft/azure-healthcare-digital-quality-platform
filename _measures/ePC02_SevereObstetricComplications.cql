@@ -66,7 +66,7 @@ define "Delivery Encounters":
   [Encounter: "Delivery Encounter"] E
     where E.status = 'finished'
       and E.period ends during "Measurement Period"
-      and E.class ~ 'inpatient'
+      and E.class ~ 'IMP'
       and AgeInYearsAt(date from start of E.period) >= 8
       and AgeInYearsAt(date from start of E.period) <= 65
 

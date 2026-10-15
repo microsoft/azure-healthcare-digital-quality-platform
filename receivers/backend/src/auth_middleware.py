@@ -488,69 +488,20 @@ class AzureADTokenValidator:
             print(f"   Time until expiry: {exp - current_time} seconds")
             print(f"   Age of token: {current_time - iat} seconds")
             
-            # Try different verification approaches with more relaxed settings
-            verification_success = False
-            payload = None
-            last_error = None
-            
-            # Approach 1: Try with increased leeway for clock skew
-            try:
-                print("🔍 Trying with increased clock skew leeway (300 seconds)...")
-                payload = jwt.decode(
-                    token,
-                    signing_key,
-                    algorithms=["RS256"],
-                    options={
-                        "verify_signature": True,
-                        "verify_exp": True,
-                        "verify_nbf": True,
-                        "verify_iat": False,  # Skip issued-at validation
-                        "verify_aud": False,
-                        "verify_iss": False
-                    },
-                    leeway=300  # 5 minutes leeway
-                )
-                verification_success = True
-                print("✓ Clock skew leeway verification successful")
-                
-            except jwt.InvalidSignatureError as e:
-                last_error = e
-                print(f"❌ Clock skew leeway verification failed: {e}")
-                
-                # Approach 2: Try completely skipping signature verification as diagnostic
-                try:
-                    print("🔍 Diagnostic: Trying without signature verification...")
-                    payload = jwt.decode(
-                        token,
-                        options={"verify_signature": False},
-                        algorithms=["RS256"]
-                    )
-                    print("✓ Token structure is valid (signature verification skipped)")
-                    print("❌ This confirms the signature verification itself is the issue")
-                    
-                    # For now, let's use the unverified payload but log it as a security concern
-                    print("⚠️  SECURITY WARNING: Using unverified token payload due to signature verification issues")
-                    verification_success = True
-                    
-                except Exception as diagnostic_error:
-                    last_error = diagnostic_error
-                    print(f"❌ Even diagnostic verification failed: {diagnostic_error}")
-            
-            if not verification_success:
-                print(f"❌ All signature verification methods failed")
-                print(f"   Final error: {last_error}")
-                
-                # Provide guidance for resolution
-                print("🔧 Troubleshooting suggestions:")
-                print("   1. Set BYPASS_TOKEN_VALIDATION=true in environment for development")
-                print("   2. Check if token was copied correctly (no truncation)")
-                print("   3. Verify system clock is synchronized")
-                print("   4. Try generating a fresh token")
-                
-                raise HTTPException(
-                    status_code=401,
-                    detail=f"Token signature verification failed: {str(last_error)}"
-                )
+            payload = jwt.decode(
+                token,
+                signing_key,
+                algorithms=["RS256"],
+                options={
+                    "verify_signature": True,
+                    "verify_exp": True,
+                    "verify_nbf": True,
+                    "verify_iat": False,  # Skip issued-at validation
+                    "verify_aud": False,
+                    "verify_iss": False
+                },
+                leeway=300  # 5 minutes leeway
+            )
             
             print("✓ Token signature verified successfully")
             

@@ -41,6 +41,8 @@ loc="$(get_env AZURE_LOCATION eastus2)"
 rg="$(get_env AZURE_RESOURCE_GROUP_NAME)"
 apim="$(get_env APIM_GATEWAY_URL)"
 env_name="$(get_env AZURE_ENV_NAME)"
+database_url="$(get_env DATABASE_URL)"
+postgres_password="$(get_env POSTGRES_ADMINISTRATOR_PASSWORD)"
 
 cosmos_host="$(printf "%s" "$cosmos_endpoint" | sed -E 's#^https?://([^:/]+).*$#\1#')"
 acr_name="$(printf "%s" "$acr" | sed -E 's/\.azurecr\.io$//')"
@@ -66,6 +68,10 @@ COSMOSDB_COHORTS_COLLECTION="$cosmos_cohorts"
 COSMOSDB_HOST="$cosmos_host"
 COSMOS_ACCOUNT_NAME="$cosmos_account"
 COSMOS_ENDPOINT="$cosmos_endpoint"
+
+# PostgreSQL CQL execution database
+DATABASE_URL="$database_url"
+PGPASSWORD="$postgres_password"
 
 # APIM
 APIM_GATEWAY_URL="$apim"

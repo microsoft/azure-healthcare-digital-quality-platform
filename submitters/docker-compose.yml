@@ -1,5 +1,6 @@
 # Runs the submitters stack of the Azure Healthcare Digital Quality
 # accelerator locally:
+#   * postgres      - PostgreSQL store for SQL-backed CQL execution
 #   * orchestrator  - FastAPI quality-measure / MCP engine (internal port 8000)
 #   * backend       - FastAPI API + DEQM router            (internal port 5000)
 #   * frontend      - Nginx-served Vite/React UI           (internal port 80)
@@ -12,21 +13,51 @@
 #   docker compose up --build
 #
 # Build contexts are set to `..` (the repo root) because the backend and
-# orchestrator Dockerfiles COPY from `submitters/<svc>/...`, `data/`, and
-# `measures/` paths that only resolve when the repo root is the context.
+# orchestrator Dockerfiles COPY from repository-root paths. The orchestrator
+# also receives the sibling CQL SDK as a named build context so local builds
+# exercise the un-released PostgreSQL backend.
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dq_submitters}
+      POSTGRES_USER: ${POSTGRES_USER:-dq}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dq}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../database/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - dq-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
   orchestrator:
     build:
       context: ..
-      dockerfile: submitters/orchestrator/Dockerfile
+      dockerfile: database/Dockerfile.orchestrator-local
+      args:
+        STACK: submitters
+      additional_contexts:
+        cql_sdk: ../../azure-healthcare-digital-quality-cql-sdk
     image: azure-healthcare-digital-quality-submitters-orchestrator:local
     env_file:
       - ./orchestrator/.env
     environment:
       - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-dq}@postgres:5432/${POSTGRES_DB:-dq_submitters}
+      - PGPASSWORD=${POSTGRES_PASSWORD:-dq}
     ports:
       - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - dq-net
     healthcheck:
@@ -78,3 +109,6 @@ services:
 networks:
   dq-net:
     driver: bridge
+
+volumes:
+  postgres-data:

@@ -10,7 +10,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.28.1.47646",
-      "templateHash": "3659801018141063829"
+      "templateHash": "2334845452634296453"
     }
   },
   "parameters": {
@@ -127,14 +127,14 @@
     },
     "aksSystemNodePoolVmSize": {
       "type": "string",
-      "defaultValue": "Standard_D2s_v5",
+      "defaultValue": "Standard_D4ds_v5",
       "metadata": {
         "description": "AKS system node pool VM size."
       }
     },
     "aksSystemNodePoolName": {
       "type": "string",
-      "defaultValue": "sys3",
+      "defaultValue": "sysd4",
       "metadata": {
         "description": "AKS system node pool name. Must match existing cluster pool when updating."
       }
@@ -217,6 +217,83 @@
     "cosmosDatabaseName": {
       "type": "string",
       "defaultValue": "dq"
+    },
+    "postgresServerName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "postgresDatabaseName": {
+      "type": "string",
+      "defaultValue": "dq_receivers"
+    },
+    "postgresLocation": {
+      "type": "string",
+      "defaultValue": "[parameters('location')]",
+      "metadata": {
+        "description": "Azure region for PostgreSQL. May differ from the stack location when subscription offers are region-restricted."
+      }
+    },
+    "postgresAdministratorLogin": {
+      "type": "string",
+      "defaultValue": "dqadmin"
+    },
+    "postgresAdministratorPassword": {
+      "type": "securestring",
+      "minLength": 16,
+      "metadata": {
+        "description": "PostgreSQL administrator password supplied through POSTGRES_ADMINISTRATOR_PASSWORD."
+      }
+    },
+    "postgresSkuName": {
+      "type": "string",
+      "defaultValue": "Standard_B1ms"
+    },
+    "postgresSkuTier": {
+      "type": "string",
+      "defaultValue": "Burstable"
+    },
+    "postgresStorageSizeGB": {
+      "type": "int",
+      "defaultValue": 32
+    },
+    "sqlServerName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "sqlDatabaseName": {
+      "type": "string",
+      "defaultValue": "dq_receiver_reporting"
+    },
+    "sqlAdministratorLogin": {
+      "type": "string",
+      "defaultValue": "sqladminuser"
+    },
+    "sqlAdministratorPassword": {
+      "type": "securestring",
+      "minLength": 16,
+      "metadata": {
+        "description": "SQL administrator password required by Azure SQL server provisioning. Runtime services use managed identity; this password is break-glass only and becomes unused when Entra-only authentication is enabled."
+      }
+    },
+    "sqlDatabaseSkuName": {
+      "type": "string",
+      "defaultValue": "Basic"
+    },
+    "sqlDatabaseSkuTier": {
+      "type": "string",
+      "defaultValue": "Basic"
+    },
+    "sqlEntraAdminObjectId": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "sqlEntraAdminLogin": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "sqlAzureAdOnlyAuthentication": {
+      "type": "bool",
+      "defaultValue": false
     },
     "agentIdentityEnabled": {
       "type": "bool",
@@ -529,8 +606,11 @@
     "serviceVirtualNetworkAppSubnetName": "app",
     "serviceVirtualNetworkPrivateEndpointSubnetName": "private-endpoints-subnet",
     "serviceVirtualNetworkApimSubnetName": "apim",
+    "cqlPostgresServerName": "[if(not(empty(parameters('postgresServerName'))), parameters('postgresServerName'), format('{0}{1}', variables('abbrs').dBforPostgreSQLServers, variables('resourceToken')))]",
     "apimResourceToken": "[toLower(uniqueString(subscription().id, parameters('resourceGroupName'), parameters('environmentName'), parameters('location')))]",
     "apiManagementName": "[format('{0}{1}', variables('abbrs').apiManagementService, variables('apimResourceToken'))]",
+    "sqlReportingServerName": "[if(not(empty(parameters('sqlServerName'))), parameters('sqlServerName'), format('{0}{1}', variables('abbrs').sqlServers, variables('resourceToken')))]",
+    "sqlReportingDatabaseName": "[parameters('sqlDatabaseName')]",
     "agentBlueprintName": "[if(not(empty(parameters('agentBlueprintDisplayName'))), parameters('agentBlueprintDisplayName'), format('DigitalQualityOrchestrator-Blueprint-{0}', variables('resourceToken')))]",
     "agentName": "[if(not(empty(parameters('agentIdentityDisplayName'))), parameters('agentIdentityDisplayName'), format('DigitalQualityOrchestrator-Agent-{0}', variables('resourceToken')))]",
     "azureMonitorWorkspaceName": "[format('amw-{0}', variables('resourceToken'))]",
@@ -825,7 +905,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[parameters('postgresLocation')]"
           },
           "entraAppUniqueName": "[if(not(empty(parameters('mcpEntraApplicationUniqueName'))), createObject('value', parameters('mcpEntraApplicationUniqueName')), createObject('value', format('mcp-oauth-{0}{1}', variables('abbrs').applications, variables('apimResourceToken'))))]",
           "entraAppDisplayName": "[if(not(empty(parameters('mcpEntraApplicationDisplayName'))), createObject('value', parameters('mcpEntraApplicationDisplayName')), createObject('value', format('MCP-OAuth-{0}{1}', variables('abbrs').applications, variables('apimResourceToken'))))]",
@@ -6283,6 +6363,847 @@
         "rg"
       ]
     },
+    "receiverReportingSql": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "receiverReportingSql",
+      "resourceGroup": "[if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "serverName": {
+            "value": "[variables('sqlReportingServerName')]"
+          },
+          "databaseName": {
+            "value": "[variables('sqlReportingDatabaseName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('tags')]"
+          },
+          "administratorLogin": {
+            "value": "[parameters('sqlAdministratorLogin')]"
+          },
+          "administratorPassword": {
+            "value": "[parameters('sqlAdministratorPassword')]"
+          },
+          "publicNetworkAccess": "[if(parameters('vnetEnabled'), createObject('value', 'Disabled'), createObject('value', 'Enabled'))]",
+          "developerIpAddress": {
+            "value": "[parameters('developerIpAddress')]"
+          },
+          "skuName": {
+            "value": "[parameters('sqlDatabaseSkuName')]"
+          },
+          "skuTier": {
+            "value": "[parameters('sqlDatabaseSkuTier')]"
+          },
+          "entraAdminObjectId": {
+            "value": "[parameters('sqlEntraAdminObjectId')]"
+          },
+          "entraAdminLogin": {
+            "value": "[parameters('sqlEntraAdminLogin')]"
+          },
+          "entraAdminTenantId": {
+            "value": "[tenant().tenantId]"
+          },
+          "azureAdOnlyAuthentication": {
+            "value": "[parameters('sqlAzureAdOnlyAuthentication')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.1-experimental",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_EXPERIMENTAL_WARNING": "This template uses ARM features that are experimental. Experimental features should be enabled for testing purposes only, as there are no guarantees about the quality or stability of these features. Do not enable these settings for any production usage, or your production environment may be subject to breaking.",
+            "_EXPERIMENTAL_FEATURES_ENABLED": [
+              "Extensibility"
+            ],
+            "_generator": {
+              "name": "bicep",
+              "version": "0.28.1.47646",
+              "templateHash": "9975843425235411867"
+            }
+          },
+          "parameters": {
+            "serverName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Azure SQL logical server."
+              }
+            },
+            "databaseName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Azure SQL database."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region for the SQL resources."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {}
+            },
+            "administratorLogin": {
+              "type": "string",
+              "metadata": {
+                "description": "SQL administrator login used for break-glass provisioning. Runtime services use managed identity."
+              }
+            },
+            "administratorPassword": {
+              "type": "securestring",
+              "minLength": 16,
+              "metadata": {
+                "description": "SQL administrator password used for break-glass provisioning. Runtime services use managed identity. Provide via AZURE_SQL_ADMINISTRATOR_PASSWORD or a Key Vault-backed azd environment value; Azure SQL requires this at server creation even when Entra-only authentication later disables SQL password sign-in."
+              }
+            },
+            "publicNetworkAccess": {
+              "type": "string",
+              "defaultValue": "Disabled",
+              "allowedValues": [
+                "Enabled",
+                "Disabled"
+              ],
+              "metadata": {
+                "description": "Public network access for the logical server. Disable when private endpoint networking is enabled."
+              }
+            },
+            "developerIpAddress": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional developer IP address for public SQL access during local development."
+              }
+            },
+            "skuName": {
+              "type": "string",
+              "defaultValue": "Basic",
+              "metadata": {
+                "description": "Azure SQL Database SKU name."
+              }
+            },
+            "skuTier": {
+              "type": "string",
+              "defaultValue": "Basic",
+              "metadata": {
+                "description": "Azure SQL Database SKU tier."
+              }
+            },
+            "entraAdminObjectId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Object ID of the Microsoft Entra administrator for the SQL server. Required to run managed-identity migrations."
+              }
+            },
+            "entraAdminLogin": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Login/display name of the Microsoft Entra administrator for the SQL server."
+              }
+            },
+            "entraAdminTenantId": {
+              "type": "string",
+              "defaultValue": "[tenant().tenantId]",
+              "metadata": {
+                "description": "Tenant ID for the Microsoft Entra administrator."
+              }
+            },
+            "entraAdminPrincipalType": {
+              "type": "string",
+              "defaultValue": "User",
+              "allowedValues": [
+                "User",
+                "Group",
+                "Application"
+              ],
+              "metadata": {
+                "description": "Principal type of the Microsoft Entra administrator."
+              }
+            },
+            "azureAdOnlyAuthentication": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "When true, disables SQL password authentication after the Entra administrator is configured."
+              }
+            }
+          },
+          "variables": {
+            "entraAdministrator": "[if(and(not(empty(parameters('entraAdminObjectId'))), not(empty(parameters('entraAdminLogin')))), createObject('administratorType', 'ActiveDirectory', 'principalType', parameters('entraAdminPrincipalType'), 'login', parameters('entraAdminLogin'), 'sid', parameters('entraAdminObjectId'), 'tenantId', parameters('entraAdminTenantId'), 'azureADOnlyAuthentication', parameters('azureAdOnlyAuthentication')), null())]"
+          },
+          "resources": {
+            "sqlServer": {
+              "type": "Microsoft.Sql/servers",
+              "apiVersion": "2023-08-01-preview",
+              "name": "[parameters('serverName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "administratorLogin": "[parameters('administratorLogin')]",
+                "administratorLoginPassword": "[parameters('administratorPassword')]",
+                "minimalTlsVersion": "1.2",
+                "publicNetworkAccess": "[parameters('publicNetworkAccess')]",
+                "restrictOutboundNetworkAccess": "Disabled",
+                "administrators": "[variables('entraAdministrator')]"
+              }
+            },
+            "sqlDatabase": {
+              "type": "Microsoft.Sql/servers/databases",
+              "apiVersion": "2023-08-01-preview",
+              "name": "[format('{0}/{1}', parameters('serverName'), parameters('databaseName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "[parameters('skuName')]",
+                "tier": "[parameters('skuTier')]"
+              },
+              "properties": {
+                "collation": "SQL_Latin1_General_CP1_CI_AS",
+                "zoneRedundant": false
+              },
+              "dependsOn": [
+                "sqlServer"
+              ]
+            },
+            "developerFirewallRule": {
+              "condition": "[and(equals(parameters('publicNetworkAccess'), 'Enabled'), not(empty(parameters('developerIpAddress'))))]",
+              "type": "Microsoft.Sql/servers/firewallRules",
+              "apiVersion": "2023-08-01-preview",
+              "name": "[format('{0}/{1}', parameters('serverName'), 'developer-ip')]",
+              "properties": {
+                "startIpAddress": "[parameters('developerIpAddress')]",
+                "endIpAddress": "[parameters('developerIpAddress')]"
+              },
+              "dependsOn": [
+                "sqlServer"
+              ]
+            }
+          },
+          "outputs": {
+            "serverName": {
+              "type": "string",
+              "value": "[parameters('serverName')]"
+            },
+            "databaseName": {
+              "type": "string",
+              "value": "[parameters('databaseName')]"
+            },
+            "fullyQualifiedDomainName": {
+              "type": "string",
+              "value": "[reference('sqlServer').fullyQualifiedDomainName]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "rg"
+      ]
+    },
+    "receiverReportingSqlPrivateEndpoint": {
+      "condition": "[parameters('vnetEnabled')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "receiverReportingSqlPrivateEndpoint",
+      "resourceGroup": "[if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('tags')]"
+          },
+          "virtualNetworkName": {
+            "value": "[variables('serviceVirtualNetworkName')]"
+          },
+          "subnetName": "[if(parameters('vnetEnabled'), createObject('value', variables('serviceVirtualNetworkPrivateEndpointSubnetName')), createObject('value', ''))]",
+          "serverName": {
+            "value": "[reference('receiverReportingSql').outputs.serverName.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.1-experimental",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_EXPERIMENTAL_WARNING": "This template uses ARM features that are experimental. Experimental features should be enabled for testing purposes only, as there are no guarantees about the quality or stability of these features. Do not enable these settings for any production usage, or your production environment may be subject to breaking.",
+            "_EXPERIMENTAL_FEATURES_ENABLED": [
+              "Extensibility"
+            ],
+            "_generator": {
+              "name": "bicep",
+              "version": "0.28.1.47646",
+              "templateHash": "5889209692818274950"
+            }
+          },
+          "parameters": {
+            "virtualNetworkName": {
+              "type": "string",
+              "metadata": {
+                "description": "Specifies the name of the virtual network."
+              }
+            },
+            "subnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Specifies the name of the subnet which contains the private endpoints."
+              }
+            },
+            "serverName": {
+              "type": "string",
+              "metadata": {
+                "description": "Specifies the Azure SQL logical server name."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Specifies the location."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {}
+            }
+          },
+          "variables": {
+            "sqlPrivateDnsZoneName": "[format('privatelink{0}', environment().suffixes.sqlServerHostname)]",
+            "sqlPrivateDnsZoneVirtualNetworkLinkName": "[format('{0}-sql-link-{1}', parameters('serverName'), take(toLower(uniqueString(parameters('serverName'), parameters('virtualNetworkName'))), 4))]"
+          },
+          "resources": {
+            "vnet": {
+              "existing": true,
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2021-08-01",
+              "name": "[parameters('virtualNetworkName')]"
+            },
+            "sqlServer": {
+              "existing": true,
+              "type": "Microsoft.Sql/servers",
+              "apiVersion": "2023-08-01-preview",
+              "name": "[parameters('serverName')]"
+            },
+            "sqlPrivateDnsZone": {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2020-06-01",
+              "name": "[variables('sqlPrivateDnsZoneName')]",
+              "location": "global",
+              "tags": "[parameters('tags')]",
+              "properties": {},
+              "dependsOn": [
+                "vnet"
+              ]
+            },
+            "sqlPrivateDnsZoneVirtualNetworkLink": {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2020-06-01",
+              "name": "[format('{0}/{1}', variables('sqlPrivateDnsZoneName'), variables('sqlPrivateDnsZoneVirtualNetworkLinkName'))]",
+              "location": "global",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                  "id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]"
+                }
+              },
+              "dependsOn": [
+                "sqlPrivateDnsZone",
+                "vnet"
+              ]
+            },
+            "sqlPrivateEndpoint": {
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2021-08-01",
+              "name": "[format('{0}-sql-private-endpoint', parameters('serverName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "sqlPrivateLinkConnection",
+                    "properties": {
+                      "privateLinkServiceId": "[resourceId('Microsoft.Sql/servers', parameters('serverName'))]",
+                      "groupIds": [
+                        "sqlServer"
+                      ]
+                    }
+                  }
+                ],
+                "subnet": {
+                  "id": "[format('{0}/subnets/{1}', resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName')), parameters('subnetName'))]"
+                }
+              },
+              "dependsOn": [
+                "sqlServer",
+                "vnet"
+              ]
+            },
+            "sqlPrivateDnsZoneGroup": {
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2021-08-01",
+              "name": "[format('{0}/{1}', format('{0}-sql-private-endpoint', parameters('serverName')), 'sqlPrivateDnsZoneGroup')]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "config1",
+                    "properties": {
+                      "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', variables('sqlPrivateDnsZoneName'))]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "sqlPrivateDnsZone",
+                "sqlPrivateEndpoint"
+              ]
+            }
+          },
+          "outputs": {
+            "privateEndpointId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateEndpoints', format('{0}-sql-private-endpoint', parameters('serverName')))]"
+            },
+            "privateDnsZoneId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateDnsZones', variables('sqlPrivateDnsZoneName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "receiverReportingSql",
+        "rg",
+        "serviceVirtualNetwork"
+      ]
+    },
+    "cqlPostgres": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "cqlPostgres",
+      "resourceGroup": "[if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "serverName": {
+            "value": "[variables('cqlPostgresServerName')]"
+          },
+          "databaseName": {
+            "value": "[parameters('postgresDatabaseName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('tags')]"
+          },
+          "administratorLogin": {
+            "value": "[parameters('postgresAdministratorLogin')]"
+          },
+          "administratorPassword": {
+            "value": "[parameters('postgresAdministratorPassword')]"
+          },
+          "publicNetworkAccess": "[if(parameters('vnetEnabled'), createObject('value', 'Disabled'), createObject('value', 'Enabled'))]",
+          "developerIpAddress": {
+            "value": "[parameters('developerIpAddress')]"
+          },
+          "skuName": {
+            "value": "[parameters('postgresSkuName')]"
+          },
+          "skuTier": {
+            "value": "[parameters('postgresSkuTier')]"
+          },
+          "storageSizeGB": {
+            "value": "[parameters('postgresStorageSizeGB')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.1-experimental",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_EXPERIMENTAL_WARNING": "This template uses ARM features that are experimental. Experimental features should be enabled for testing purposes only, as there are no guarantees about the quality or stability of these features. Do not enable these settings for any production usage, or your production environment may be subject to breaking.",
+            "_EXPERIMENTAL_FEATURES_ENABLED": [
+              "Extensibility"
+            ],
+            "_generator": {
+              "name": "bicep",
+              "version": "0.28.1.47646",
+              "templateHash": "12848251542384101670"
+            }
+          },
+          "parameters": {
+            "serverName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Azure Database for PostgreSQL Flexible Server."
+              }
+            },
+            "databaseName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the PostgreSQL database."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region for the PostgreSQL resources."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {}
+            },
+            "administratorLogin": {
+              "type": "string",
+              "metadata": {
+                "description": "PostgreSQL administrator login."
+              }
+            },
+            "administratorPassword": {
+              "type": "securestring",
+              "minLength": 16,
+              "metadata": {
+                "description": "PostgreSQL administrator password. Provide it through a secure azd environment value."
+              }
+            },
+            "publicNetworkAccess": {
+              "type": "string",
+              "defaultValue": "Disabled",
+              "allowedValues": [
+                "Enabled",
+                "Disabled"
+              ],
+              "metadata": {
+                "description": "Public network access. Disable when private endpoint networking is enabled."
+              }
+            },
+            "developerIpAddress": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional developer IP address for direct PostgreSQL access."
+              }
+            },
+            "skuName": {
+              "type": "string",
+              "defaultValue": "Standard_B1ms",
+              "metadata": {
+                "description": "Flexible Server compute SKU name."
+              }
+            },
+            "skuTier": {
+              "type": "string",
+              "defaultValue": "Burstable",
+              "allowedValues": [
+                "Burstable",
+                "GeneralPurpose",
+                "MemoryOptimized"
+              ],
+              "metadata": {
+                "description": "Flexible Server compute tier."
+              }
+            },
+            "storageSizeGB": {
+              "type": "int",
+              "defaultValue": 32,
+              "minValue": 32,
+              "metadata": {
+                "description": "Allocated PostgreSQL storage in GiB."
+              }
+            }
+          },
+          "resources": {
+            "postgresServer": {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+              "apiVersion": "2024-08-01",
+              "name": "[parameters('serverName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "[parameters('skuName')]",
+                "tier": "[parameters('skuTier')]"
+              },
+              "properties": {
+                "administratorLogin": "[parameters('administratorLogin')]",
+                "administratorLoginPassword": "[parameters('administratorPassword')]",
+                "version": "16",
+                "backup": {
+                  "backupRetentionDays": 7,
+                  "geoRedundantBackup": "Disabled"
+                },
+                "highAvailability": {
+                  "mode": "Disabled"
+                },
+                "network": {
+                  "publicNetworkAccess": "[parameters('publicNetworkAccess')]"
+                },
+                "storage": {
+                  "autoGrow": "Enabled",
+                  "storageSizeGB": "[parameters('storageSizeGB')]"
+                }
+              }
+            },
+            "postgresDatabase": {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/databases",
+              "apiVersion": "2024-08-01",
+              "name": "[format('{0}/{1}', parameters('serverName'), parameters('databaseName'))]",
+              "properties": {
+                "charset": "UTF8",
+                "collation": "en_US.utf8"
+              },
+              "dependsOn": [
+                "postgresServer"
+              ]
+            },
+            "allowAzureServices": {
+              "condition": "[equals(parameters('publicNetworkAccess'), 'Enabled')]",
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/firewallRules",
+              "apiVersion": "2024-08-01",
+              "name": "[format('{0}/{1}', parameters('serverName'), 'AllowAllAzureServicesAndResourcesWithinAzureIps')]",
+              "properties": {
+                "startIpAddress": "0.0.0.0",
+                "endIpAddress": "0.0.0.0"
+              },
+              "dependsOn": [
+                "postgresServer"
+              ]
+            },
+            "developerFirewallRule": {
+              "condition": "[and(equals(parameters('publicNetworkAccess'), 'Enabled'), not(empty(parameters('developerIpAddress'))))]",
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/firewallRules",
+              "apiVersion": "2024-08-01",
+              "name": "[format('{0}/{1}', parameters('serverName'), 'developer-ip')]",
+              "properties": {
+                "startIpAddress": "[parameters('developerIpAddress')]",
+                "endIpAddress": "[parameters('developerIpAddress')]"
+              },
+              "dependsOn": [
+                "postgresServer"
+              ]
+            }
+          },
+          "outputs": {
+            "serverName": {
+              "type": "string",
+              "value": "[parameters('serverName')]"
+            },
+            "databaseName": {
+              "type": "string",
+              "value": "[parameters('databaseName')]"
+            },
+            "fullyQualifiedDomainName": {
+              "type": "string",
+              "value": "[reference('postgresServer').fullyQualifiedDomainName]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "rg"
+      ]
+    },
+    "cqlPostgresPrivateEndpoint": {
+      "condition": "[parameters('vnetEnabled')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "cqlPostgresPrivateEndpoint",
+      "resourceGroup": "[if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('tags')]"
+          },
+          "virtualNetworkName": {
+            "value": "[variables('serviceVirtualNetworkName')]"
+          },
+          "subnetName": {
+            "value": "[variables('serviceVirtualNetworkPrivateEndpointSubnetName')]"
+          },
+          "serverName": {
+            "value": "[reference('cqlPostgres').outputs.serverName.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.1-experimental",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_EXPERIMENTAL_WARNING": "This template uses ARM features that are experimental. Experimental features should be enabled for testing purposes only, as there are no guarantees about the quality or stability of these features. Do not enable these settings for any production usage, or your production environment may be subject to breaking.",
+            "_EXPERIMENTAL_FEATURES_ENABLED": [
+              "Extensibility"
+            ],
+            "_generator": {
+              "name": "bicep",
+              "version": "0.28.1.47646",
+              "templateHash": "9642407319714634581"
+            }
+          },
+          "parameters": {
+            "virtualNetworkName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the virtual network."
+              }
+            },
+            "subnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the private-endpoint subnet."
+              }
+            },
+            "serverName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the PostgreSQL Flexible Server."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region for the private endpoint."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {}
+            }
+          },
+          "variables": {
+            "privateDnsZoneName": "privatelink.postgres.database.azure.com",
+            "virtualNetworkLinkName": "[format('{0}-postgres-link-{1}', parameters('serverName'), take(toLower(uniqueString(parameters('serverName'), parameters('virtualNetworkName'))), 4))]"
+          },
+          "resources": {
+            "vnet": {
+              "existing": true,
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2021-08-01",
+              "name": "[parameters('virtualNetworkName')]"
+            },
+            "postgresServer": {
+              "existing": true,
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+              "apiVersion": "2024-08-01",
+              "name": "[parameters('serverName')]"
+            },
+            "privateDnsZone": {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2020-06-01",
+              "name": "[variables('privateDnsZoneName')]",
+              "location": "global",
+              "tags": "[parameters('tags')]"
+            },
+            "privateDnsZoneVirtualNetworkLink": {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2020-06-01",
+              "name": "[format('{0}/{1}', variables('privateDnsZoneName'), variables('virtualNetworkLinkName'))]",
+              "location": "global",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                  "id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]"
+                }
+              },
+              "dependsOn": [
+                "privateDnsZone",
+                "vnet"
+              ]
+            },
+            "privateEndpoint": {
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2021-08-01",
+              "name": "[format('{0}-postgres-private-endpoint', parameters('serverName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "postgresPrivateLinkConnection",
+                    "properties": {
+                      "privateLinkServiceId": "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]",
+                      "groupIds": [
+                        "postgresqlServer"
+                      ]
+                    }
+                  }
+                ],
+                "subnet": {
+                  "id": "[format('{0}/subnets/{1}', resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName')), parameters('subnetName'))]"
+                }
+              },
+              "dependsOn": [
+                "postgresServer",
+                "vnet"
+              ]
+            },
+            "privateDnsZoneGroup": {
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2021-08-01",
+              "name": "[format('{0}/{1}', format('{0}-postgres-private-endpoint', parameters('serverName')), 'postgresPrivateDnsZoneGroup')]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "config1",
+                    "properties": {
+                      "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneName'))]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "privateDnsZone",
+                "privateEndpoint"
+              ]
+            }
+          },
+          "outputs": {
+            "privateEndpointId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateEndpoints', format('{0}-postgres-private-endpoint', parameters('serverName')))]"
+            },
+            "privateDnsZoneId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "cqlPostgres",
+        "rg",
+        "serviceVirtualNetwork"
+      ]
+    },
     "learningCosmos": {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2022-09-01",
@@ -10105,6 +11026,42 @@
     "EMBEDDING_MODEL_DEPLOYMENT_NAME": {
       "type": "string",
       "value": "[parameters('embeddingModelDeploymentName')]"
+    },
+    "AZURE_SQL_SERVER_NAME": {
+      "type": "string",
+      "value": "[reference('receiverReportingSql').outputs.serverName.value]"
+    },
+    "AZURE_SQL_DATABASE_NAME": {
+      "type": "string",
+      "value": "[reference('receiverReportingSql').outputs.databaseName.value]"
+    },
+    "AZURE_SQL_SERVER_FQDN": {
+      "type": "string",
+      "value": "[reference('receiverReportingSql').outputs.fullyQualifiedDomainName.value]"
+    },
+    "AZURE_SQL_CONNECTION_STRING": {
+      "type": "string",
+      "value": "[format('Driver={{ODBC Driver 18 for SQL Server}};Server=tcp:{0},1433;Database={1};Encrypt=yes;TrustServerCertificate=no;Authentication=ActiveDirectoryMsi;UID={2};', reference('receiverReportingSql').outputs.fullyQualifiedDomainName.value, reference('receiverReportingSql').outputs.databaseName.value, reference('mcpUserAssignedIdentity').outputs.identityClientId.value)]"
+    },
+    "POSTGRES_SERVER_NAME": {
+      "type": "string",
+      "value": "[reference('cqlPostgres').outputs.serverName.value]"
+    },
+    "POSTGRES_DATABASE_NAME": {
+      "type": "string",
+      "value": "[reference('cqlPostgres').outputs.databaseName.value]"
+    },
+    "POSTGRES_SERVER_FQDN": {
+      "type": "string",
+      "value": "[reference('cqlPostgres').outputs.fullyQualifiedDomainName.value]"
+    },
+    "POSTGRES_USER": {
+      "type": "string",
+      "value": "[parameters('postgresAdministratorLogin')]"
+    },
+    "DATABASE_URL": {
+      "type": "string",
+      "value": "[format('postgresql://{0}@{1}:5432/{2}?sslmode=require', uriComponent(parameters('postgresAdministratorLogin')), reference('cqlPostgres').outputs.fullyQualifiedDomainName.value, uriComponent(reference('cqlPostgres').outputs.databaseName.value))]"
     },
     "COSMOSDB_ENDPOINT": {
       "type": "string",

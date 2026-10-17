@@ -49,6 +49,8 @@ $tenantId = Get-Env 'AZURE_TENANT_ID'
 $location = Get-Env 'AZURE_LOCATION' 'eastus2'
 $rgName = Get-Env 'AZURE_RESOURCE_GROUP_NAME'
 $apimGateway = Get-Env 'APIM_GATEWAY_URL'
+$databaseUrl = Get-Env 'DATABASE_URL'
+$postgresPassword = Get-Env 'POSTGRES_ADMINISTRATOR_PASSWORD'
 
 $cosmosHost = ''
 if ($cosmosEndpoint -match '^https?://([^:/]+)') { $cosmosHost = $matches[1] }
@@ -72,6 +74,10 @@ $backendEnvLines = @(
   "COSMOSDB_HOST=`"$cosmosHost`"",
   "COSMOS_ACCOUNT_NAME=`"$cosmosAccount`"",
   "COSMOS_ENDPOINT=`"$cosmosEndpoint`"",
+  '',
+  '# PostgreSQL CQL execution database',
+  "DATABASE_URL=`"$databaseUrl`"",
+  "PGPASSWORD=`"$postgresPassword`"",
   '',
   '# APIM',
   "APIM_GATEWAY_URL=`"$apimGateway`"",

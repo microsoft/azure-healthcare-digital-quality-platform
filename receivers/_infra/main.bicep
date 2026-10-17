@@ -49,10 +49,10 @@ param apimVirtualNetworkType string = 'External'
 param mcpServerBackendUrl string = 'http://placeholder/runtime/webhooks/mcp'
 
 @description('AKS system node pool VM size.')
-param aksSystemNodePoolVmSize string = 'Standard_D2s_v5'
+param aksSystemNodePoolVmSize string = 'Standard_D4ds_v5'
 
 @description('AKS system node pool name. Must match existing cluster pool when updating.')
-param aksSystemNodePoolName string = 'sys3'
+param aksSystemNodePoolName string = 'sysd4'
 
 @description('AKS system node pool node count. Use 1 in constrained regions to avoid capacity failures during updates.')
 param aksSystemNodePoolCount int = 1
@@ -82,6 +82,20 @@ param embeddingModelCapacity int = 10
 // CosmosDB configuration
 param cosmosDbAccountName string = ''
 param cosmosDatabaseName string = 'dq'
+
+// PostgreSQL configuration for SQL-backed CQL execution
+param postgresServerName string = ''
+param postgresDatabaseName string = 'dq_receivers'
+@description('Azure region for PostgreSQL. May differ from the stack location when subscription offers are region-restricted.')
+param postgresLocation string = location
+param postgresAdministratorLogin string = 'dqadmin'
+@secure()
+@minLength(16)
+@description('PostgreSQL administrator password supplied through POSTGRES_ADMINISTRATOR_PASSWORD.')
+param postgresAdministratorPassword string
+param postgresSkuName string = 'Standard_B1ms'
+param postgresSkuTier string = 'Burstable'
+param postgresStorageSizeGB int = 32
 
 // Azure SQL reporting configuration
 param sqlServerName string = ''
@@ -197,6 +211,7 @@ var serviceVirtualNetworkName = !empty(vNetName) ? vNetName : '${abbrs.networkVi
 var serviceVirtualNetworkAppSubnetName = 'app'
 var serviceVirtualNetworkPrivateEndpointSubnetName = 'private-endpoints-subnet'
 var serviceVirtualNetworkApimSubnetName = 'apim'
+var cqlPostgresServerName = !empty(postgresServerName) ? postgresServerName : '${abbrs.dBforPostgreSQLServers}${resourceToken}'
 
 
 // Organize resources in a resource group
@@ -235,7 +250,7 @@ module oauthAPIModule './app/apim-oauth/oauth.bicep' = {
   name: 'oauthAPIModule'
   scope: rg
   params: {
-    location: location
+    location: postgresLocation
     entraAppUniqueName: !empty(mcpEntraApplicationUniqueName) ? mcpEntraApplicationUniqueName : 'mcp-oauth-${abbrs.applications}${apimResourceToken}'
     entraAppDisplayName: !empty(mcpEntraApplicationDisplayName) ? mcpEntraApplicationDisplayName : 'MCP-OAuth-${abbrs.applications}${apimResourceToken}'
     apimServiceName: apimService.name
@@ -820,6 +835,40 @@ module receiverReportingSqlPrivateEndpoint './app/sql-PrivateEndpoint.bicep' = i
   ]
 }
 
+// PostgreSQL 16 executes compiled CQL over patient-scoped FHIR JSONB data.
+module cqlPostgres './core/postgres/postgresql-database.bicep' = {
+  name: 'cqlPostgres'
+  scope: rg
+  params: {
+    serverName: cqlPostgresServerName
+    databaseName: postgresDatabaseName
+    location: location
+    tags: tags
+    administratorLogin: postgresAdministratorLogin
+    administratorPassword: postgresAdministratorPassword
+    publicNetworkAccess: vnetEnabled ? 'Disabled' : 'Enabled'
+    developerIpAddress: developerIpAddress
+    skuName: postgresSkuName
+    skuTier: postgresSkuTier
+    storageSizeGB: postgresStorageSizeGB
+  }
+}
+
+module cqlPostgresPrivateEndpoint './app/postgresql-PrivateEndpoint.bicep' = if (vnetEnabled) {
+  name: 'cqlPostgresPrivateEndpoint'
+  scope: rg
+  params: {
+    location: location
+    tags: tags
+    virtualNetworkName: serviceVirtualNetworkName
+    subnetName: serviceVirtualNetworkPrivateEndpointSubnetName
+    serverName: cqlPostgres.outputs.serverName
+  }
+  dependsOn: [
+    serviceVirtualNetwork
+  ]
+}
+
 // =========================================
 // Agent Learning Cosmos DB Resources
 // Database and containers for the Agent Learning SDK's RL loop.
@@ -1165,6 +1214,13 @@ output AZURE_SQL_SERVER_NAME string = receiverReportingSql.outputs.serverName
 output AZURE_SQL_DATABASE_NAME string = receiverReportingSql.outputs.databaseName
 output AZURE_SQL_SERVER_FQDN string = receiverReportingSql.outputs.fullyQualifiedDomainName
 output AZURE_SQL_CONNECTION_STRING string = 'Driver={ODBC Driver 18 for SQL Server};Server=tcp:${receiverReportingSql.outputs.fullyQualifiedDomainName},1433;Database=${receiverReportingSql.outputs.databaseName};Encrypt=yes;TrustServerCertificate=no;Authentication=ActiveDirectoryMsi;UID=${mcpUserAssignedIdentity.outputs.identityClientId};'
+
+// PostgreSQL CQL execution outputs
+output POSTGRES_SERVER_NAME string = cqlPostgres.outputs.serverName
+output POSTGRES_DATABASE_NAME string = cqlPostgres.outputs.databaseName
+output POSTGRES_SERVER_FQDN string = cqlPostgres.outputs.fullyQualifiedDomainName
+output POSTGRES_USER string = postgresAdministratorLogin
+output DATABASE_URL string = 'postgresql://${uriComponent(postgresAdministratorLogin)}@${cqlPostgres.outputs.fullyQualifiedDomainName}:5432/${uriComponent(cqlPostgres.outputs.databaseName)}?sslmode=require'
 
 // CosmosDB outputs
 output COSMOSDB_ENDPOINT string = cosmosAccount.outputs.endpoint

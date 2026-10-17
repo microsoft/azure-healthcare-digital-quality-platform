@@ -10,7 +10,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.28.1.47646",
-      "templateHash": "15721990472022782984"
+      "templateHash": "14650134164851933280"
     }
   },
   "parameters": {
@@ -127,21 +127,21 @@
     },
     "aksSystemNodePoolVmSize": {
       "type": "string",
-      "defaultValue": "Standard_D2s_v5",
+      "defaultValue": "Standard_D4ds_v5",
       "metadata": {
         "description": "AKS system node pool VM size."
       }
     },
     "aksSystemNodePoolName": {
       "type": "string",
-      "defaultValue": "sys3",
+      "defaultValue": "sysd4",
       "metadata": {
         "description": "AKS system node pool name. Must match existing cluster pool when updating."
       }
     },
     "aksSystemNodePoolCount": {
       "type": "int",
-      "defaultValue": 1,
+      "defaultValue": 2,
       "metadata": {
         "description": "AKS system node pool node count. Use 1 in constrained regions to avoid capacity failures during updates."
       }
@@ -218,13 +218,43 @@
       "type": "string",
       "defaultValue": "dq"
     },
-    "searchServiceName": {
+    "postgresServerName": {
       "type": "string",
       "defaultValue": ""
     },
-    "searchIndexName": {
+    "postgresDatabaseName": {
       "type": "string",
-      "defaultValue": "task-instructions"
+      "defaultValue": "dq_submitters"
+    },
+    "postgresLocation": {
+      "type": "string",
+      "defaultValue": "[parameters('location')]",
+      "metadata": {
+        "description": "Azure region for PostgreSQL. May differ from the stack location when subscription offers are region-restricted."
+      }
+    },
+    "postgresAdministratorLogin": {
+      "type": "string",
+      "defaultValue": "dqadmin"
+    },
+    "postgresAdministratorPassword": {
+      "type": "securestring",
+      "minLength": 16,
+      "metadata": {
+        "description": "PostgreSQL administrator password supplied through POSTGRES_ADMINISTRATOR_PASSWORD."
+      }
+    },
+    "postgresSkuName": {
+      "type": "string",
+      "defaultValue": "Standard_B1ms"
+    },
+    "postgresSkuTier": {
+      "type": "string",
+      "defaultValue": "Burstable"
+    },
+    "postgresStorageSizeGB": {
+      "type": "int",
+      "defaultValue": 32
     },
     "agentIdentityEnabled": {
       "type": "bool",
@@ -537,6 +567,7 @@
     "serviceVirtualNetworkAppSubnetName": "app",
     "serviceVirtualNetworkPrivateEndpointSubnetName": "private-endpoints-subnet",
     "serviceVirtualNetworkApimSubnetName": "apim",
+    "cqlPostgresServerName": "[if(not(empty(parameters('postgresServerName'))), parameters('postgresServerName'), format('{0}{1}', variables('abbrs').dBforPostgreSQLServers, variables('resourceToken')))]",
     "apimResourceToken": "[toLower(uniqueString(subscription().id, parameters('resourceGroupName'), parameters('environmentName'), parameters('location')))]",
     "apiManagementName": "[format('{0}{1}', variables('abbrs').apiManagementService, variables('apimResourceToken'))]",
     "agentBlueprintName": "[if(not(empty(parameters('agentBlueprintDisplayName'))), parameters('agentBlueprintDisplayName'), format('DigitalQualityOrchestrator-Blueprint-{0}', variables('resourceToken')))]",
@@ -551,9 +582,6 @@
     "AzureAIDeveloper": "64702f94-c441-49e6-a78b-ef80e0188fee",
     "cosmosResourceName": "[if(not(empty(parameters('cosmosDbAccountName'))), parameters('cosmosDbAccountName'), format('{0}{1}', variables('abbrs').documentDBDatabaseAccounts, variables('resourceToken')))]",
     "CosmosDBDataContributor": "00000000-0000-0000-0000-000000000002",
-    "searchResourceName": "[if(not(empty(parameters('searchServiceName'))), parameters('searchServiceName'), format('{0}{1}', variables('abbrs').searchSearchServices, variables('resourceToken')))]",
-    "SearchIndexDataContributor": "8ebe5a00-799e-43f5-93ac-243d3dce84a7",
-    "SearchServiceContributor": "7ca78c08-252a-4471-8644-bb5ff32d4ba0",
     "monitoringRoleDefinitionId": "3913510d-42f4-4e42-8a64-420c390055eb",
     "grafanaResourceName": "[if(not(empty(parameters('grafanaName'))), parameters('grafanaName'), format('amg-{0}', variables('resourceToken')))]",
     "MonitoringReader": "43d0d8ad-25c7-4714-9337-8ba259a9fe05",
@@ -836,7 +864,7 @@
         "mode": "Incremental",
         "parameters": {
           "location": {
-            "value": "[parameters('location')]"
+            "value": "[parameters('postgresLocation')]"
           },
           "entraAppUniqueName": "[if(not(empty(parameters('mcpEntraApplicationUniqueName'))), createObject('value', parameters('mcpEntraApplicationUniqueName')), createObject('value', format('mcp-oauth-{0}{1}', variables('abbrs').applications, variables('apimResourceToken'))))]",
           "entraAppDisplayName": "[if(not(empty(parameters('mcpEntraApplicationDisplayName'))), createObject('value', parameters('mcpEntraApplicationDisplayName')), createObject('value', format('MCP-OAuth-{0}{1}', variables('abbrs').applications, variables('apimResourceToken'))))]",
@@ -2558,7 +2586,7 @@
             "value": "[variables('tags')]"
           },
           "kubernetesVersion": {
-            "value": "1.32.0"
+            "value": "1.34"
           },
           "systemNodePoolName": {
             "value": "[parameters('aksSystemNodePoolName')]"
@@ -6294,10 +6322,421 @@
         "rg"
       ]
     },
-    "lightningCosmos": {
+    "cqlPostgres": {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2022-09-01",
-      "name": "lightningCosmos",
+      "name": "cqlPostgres",
+      "resourceGroup": "[if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "serverName": {
+            "value": "[variables('cqlPostgresServerName')]"
+          },
+          "databaseName": {
+            "value": "[parameters('postgresDatabaseName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('tags')]"
+          },
+          "administratorLogin": {
+            "value": "[parameters('postgresAdministratorLogin')]"
+          },
+          "administratorPassword": {
+            "value": "[parameters('postgresAdministratorPassword')]"
+          },
+          "publicNetworkAccess": "[if(parameters('vnetEnabled'), createObject('value', 'Disabled'), createObject('value', 'Enabled'))]",
+          "developerIpAddress": {
+            "value": "[parameters('developerIpAddress')]"
+          },
+          "skuName": {
+            "value": "[parameters('postgresSkuName')]"
+          },
+          "skuTier": {
+            "value": "[parameters('postgresSkuTier')]"
+          },
+          "storageSizeGB": {
+            "value": "[parameters('postgresStorageSizeGB')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.1-experimental",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_EXPERIMENTAL_WARNING": "This template uses ARM features that are experimental. Experimental features should be enabled for testing purposes only, as there are no guarantees about the quality or stability of these features. Do not enable these settings for any production usage, or your production environment may be subject to breaking.",
+            "_EXPERIMENTAL_FEATURES_ENABLED": [
+              "Extensibility"
+            ],
+            "_generator": {
+              "name": "bicep",
+              "version": "0.28.1.47646",
+              "templateHash": "12848251542384101670"
+            }
+          },
+          "parameters": {
+            "serverName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Azure Database for PostgreSQL Flexible Server."
+              }
+            },
+            "databaseName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the PostgreSQL database."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region for the PostgreSQL resources."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {}
+            },
+            "administratorLogin": {
+              "type": "string",
+              "metadata": {
+                "description": "PostgreSQL administrator login."
+              }
+            },
+            "administratorPassword": {
+              "type": "securestring",
+              "minLength": 16,
+              "metadata": {
+                "description": "PostgreSQL administrator password. Provide it through a secure azd environment value."
+              }
+            },
+            "publicNetworkAccess": {
+              "type": "string",
+              "defaultValue": "Disabled",
+              "allowedValues": [
+                "Enabled",
+                "Disabled"
+              ],
+              "metadata": {
+                "description": "Public network access. Disable when private endpoint networking is enabled."
+              }
+            },
+            "developerIpAddress": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Optional developer IP address for direct PostgreSQL access."
+              }
+            },
+            "skuName": {
+              "type": "string",
+              "defaultValue": "Standard_B1ms",
+              "metadata": {
+                "description": "Flexible Server compute SKU name."
+              }
+            },
+            "skuTier": {
+              "type": "string",
+              "defaultValue": "Burstable",
+              "allowedValues": [
+                "Burstable",
+                "GeneralPurpose",
+                "MemoryOptimized"
+              ],
+              "metadata": {
+                "description": "Flexible Server compute tier."
+              }
+            },
+            "storageSizeGB": {
+              "type": "int",
+              "defaultValue": 32,
+              "minValue": 32,
+              "metadata": {
+                "description": "Allocated PostgreSQL storage in GiB."
+              }
+            }
+          },
+          "resources": {
+            "postgresServer": {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+              "apiVersion": "2024-08-01",
+              "name": "[parameters('serverName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "sku": {
+                "name": "[parameters('skuName')]",
+                "tier": "[parameters('skuTier')]"
+              },
+              "properties": {
+                "administratorLogin": "[parameters('administratorLogin')]",
+                "administratorLoginPassword": "[parameters('administratorPassword')]",
+                "version": "16",
+                "backup": {
+                  "backupRetentionDays": 7,
+                  "geoRedundantBackup": "Disabled"
+                },
+                "highAvailability": {
+                  "mode": "Disabled"
+                },
+                "network": {
+                  "publicNetworkAccess": "[parameters('publicNetworkAccess')]"
+                },
+                "storage": {
+                  "autoGrow": "Enabled",
+                  "storageSizeGB": "[parameters('storageSizeGB')]"
+                }
+              }
+            },
+            "postgresDatabase": {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/databases",
+              "apiVersion": "2024-08-01",
+              "name": "[format('{0}/{1}', parameters('serverName'), parameters('databaseName'))]",
+              "properties": {
+                "charset": "UTF8",
+                "collation": "en_US.utf8"
+              },
+              "dependsOn": [
+                "postgresServer"
+              ]
+            },
+            "allowAzureServices": {
+              "condition": "[equals(parameters('publicNetworkAccess'), 'Enabled')]",
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/firewallRules",
+              "apiVersion": "2024-08-01",
+              "name": "[format('{0}/{1}', parameters('serverName'), 'AllowAllAzureServicesAndResourcesWithinAzureIps')]",
+              "properties": {
+                "startIpAddress": "0.0.0.0",
+                "endIpAddress": "0.0.0.0"
+              },
+              "dependsOn": [
+                "postgresServer"
+              ]
+            },
+            "developerFirewallRule": {
+              "condition": "[and(equals(parameters('publicNetworkAccess'), 'Enabled'), not(empty(parameters('developerIpAddress'))))]",
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/firewallRules",
+              "apiVersion": "2024-08-01",
+              "name": "[format('{0}/{1}', parameters('serverName'), 'developer-ip')]",
+              "properties": {
+                "startIpAddress": "[parameters('developerIpAddress')]",
+                "endIpAddress": "[parameters('developerIpAddress')]"
+              },
+              "dependsOn": [
+                "postgresServer"
+              ]
+            }
+          },
+          "outputs": {
+            "serverName": {
+              "type": "string",
+              "value": "[parameters('serverName')]"
+            },
+            "databaseName": {
+              "type": "string",
+              "value": "[parameters('databaseName')]"
+            },
+            "fullyQualifiedDomainName": {
+              "type": "string",
+              "value": "[reference('postgresServer').fullyQualifiedDomainName]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "rg"
+      ]
+    },
+    "cqlPostgresPrivateEndpoint": {
+      "condition": "[parameters('vnetEnabled')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "cqlPostgresPrivateEndpoint",
+      "resourceGroup": "[if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('tags')]"
+          },
+          "virtualNetworkName": {
+            "value": "[variables('serviceVirtualNetworkName')]"
+          },
+          "subnetName": {
+            "value": "[variables('serviceVirtualNetworkPrivateEndpointSubnetName')]"
+          },
+          "serverName": {
+            "value": "[reference('cqlPostgres').outputs.serverName.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.1-experimental",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_EXPERIMENTAL_WARNING": "This template uses ARM features that are experimental. Experimental features should be enabled for testing purposes only, as there are no guarantees about the quality or stability of these features. Do not enable these settings for any production usage, or your production environment may be subject to breaking.",
+            "_EXPERIMENTAL_FEATURES_ENABLED": [
+              "Extensibility"
+            ],
+            "_generator": {
+              "name": "bicep",
+              "version": "0.28.1.47646",
+              "templateHash": "9642407319714634581"
+            }
+          },
+          "parameters": {
+            "virtualNetworkName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the virtual network."
+              }
+            },
+            "subnetName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the private-endpoint subnet."
+              }
+            },
+            "serverName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the PostgreSQL Flexible Server."
+              }
+            },
+            "location": {
+              "type": "string",
+              "defaultValue": "[resourceGroup().location]",
+              "metadata": {
+                "description": "Azure region for the private endpoint."
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {}
+            }
+          },
+          "variables": {
+            "privateDnsZoneName": "privatelink.postgres.database.azure.com",
+            "virtualNetworkLinkName": "[format('{0}-postgres-link-{1}', parameters('serverName'), take(toLower(uniqueString(parameters('serverName'), parameters('virtualNetworkName'))), 4))]"
+          },
+          "resources": {
+            "vnet": {
+              "existing": true,
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2021-08-01",
+              "name": "[parameters('virtualNetworkName')]"
+            },
+            "postgresServer": {
+              "existing": true,
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+              "apiVersion": "2024-08-01",
+              "name": "[parameters('serverName')]"
+            },
+            "privateDnsZone": {
+              "type": "Microsoft.Network/privateDnsZones",
+              "apiVersion": "2020-06-01",
+              "name": "[variables('privateDnsZoneName')]",
+              "location": "global",
+              "tags": "[parameters('tags')]"
+            },
+            "privateDnsZoneVirtualNetworkLink": {
+              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+              "apiVersion": "2020-06-01",
+              "name": "[format('{0}/{1}', variables('privateDnsZoneName'), variables('virtualNetworkLinkName'))]",
+              "location": "global",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                  "id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]"
+                }
+              },
+              "dependsOn": [
+                "privateDnsZone",
+                "vnet"
+              ]
+            },
+            "privateEndpoint": {
+              "type": "Microsoft.Network/privateEndpoints",
+              "apiVersion": "2021-08-01",
+              "name": "[format('{0}-postgres-private-endpoint', parameters('serverName'))]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "privateLinkServiceConnections": [
+                  {
+                    "name": "postgresPrivateLinkConnection",
+                    "properties": {
+                      "privateLinkServiceId": "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', parameters('serverName'))]",
+                      "groupIds": [
+                        "postgresqlServer"
+                      ]
+                    }
+                  }
+                ],
+                "subnet": {
+                  "id": "[format('{0}/subnets/{1}', resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName')), parameters('subnetName'))]"
+                }
+              },
+              "dependsOn": [
+                "postgresServer",
+                "vnet"
+              ]
+            },
+            "privateDnsZoneGroup": {
+              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+              "apiVersion": "2021-08-01",
+              "name": "[format('{0}/{1}', format('{0}-postgres-private-endpoint', parameters('serverName')), 'postgresPrivateDnsZoneGroup')]",
+              "properties": {
+                "privateDnsZoneConfigs": [
+                  {
+                    "name": "config1",
+                    "properties": {
+                      "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneName'))]"
+                    }
+                  }
+                ]
+              },
+              "dependsOn": [
+                "privateDnsZone",
+                "privateEndpoint"
+              ]
+            }
+          },
+          "outputs": {
+            "privateEndpointId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateEndpoints', format('{0}-postgres-private-endpoint', parameters('serverName')))]"
+            },
+            "privateDnsZoneId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "cqlPostgres",
+        "rg",
+        "serviceVirtualNetwork"
+      ]
+    },
+    "learningCosmos": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "learningCosmos",
       "resourceGroup": "[if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))]",
       "properties": {
         "expressionEvaluationOptions": {
@@ -6327,7 +6766,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.28.1.47646",
-              "templateHash": "8946184822999152493"
+              "templateHash": "7991345946095910273"
             }
           },
           "parameters": {
@@ -6341,7 +6780,7 @@
               "type": "string",
               "defaultValue": "dq_rl",
               "metadata": {
-                "description": "Name of the Lightning database (default: dq_rl)."
+                "description": "Name of the Agent Learning database (default: dq_rl)."
               }
             },
             "tags": {
@@ -6359,7 +6798,7 @@
               "apiVersion": "2024-05-15",
               "name": "[parameters('parentAccountName')]"
             },
-            "lightningDatabase": {
+            "learningDatabase": {
               "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
               "apiVersion": "2024-05-15",
               "name": "[format('{0}/{1}', parameters('parentAccountName'), parameters('databaseName'))]",
@@ -6376,11 +6815,11 @@
             "episodesContainer": {
               "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
               "apiVersion": "2024-05-15",
-              "name": "[format('{0}/{1}/{2}', parameters('parentAccountName'), parameters('databaseName'), 'rl_episodes')]",
+              "name": "[format('{0}/{1}/{2}', parameters('parentAccountName'), parameters('databaseName'), 'learning_episodes')]",
               "tags": "[parameters('tags')]",
               "properties": {
                 "resource": {
-                  "id": "rl_episodes",
+                  "id": "learning_episodes",
                   "partitionKey": {
                     "paths": [
                       "/agent_id"
@@ -6406,17 +6845,87 @@
                 }
               },
               "dependsOn": [
-                "lightningDatabase"
+                "learningDatabase"
+              ]
+            },
+            "metricsContainer": {
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+              "apiVersion": "2024-05-15",
+              "name": "[format('{0}/{1}/{2}', parameters('parentAccountName'), parameters('databaseName'), 'learning_metrics')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "resource": {
+                  "id": "learning_metrics",
+                  "partitionKey": {
+                    "paths": [
+                      "/agent_id"
+                    ],
+                    "kind": "Hash",
+                    "version": 2
+                  },
+                  "indexingPolicy": {
+                    "automatic": true,
+                    "indexingMode": "consistent",
+                    "includedPaths": [
+                      {
+                        "path": "/*"
+                      }
+                    ],
+                    "excludedPaths": [
+                      {
+                        "path": "/\"_etag\"/?"
+                      }
+                    ]
+                  }
+                }
+              },
+              "dependsOn": [
+                "learningDatabase"
+              ]
+            },
+            "policiesContainer": {
+              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+              "apiVersion": "2024-05-15",
+              "name": "[format('{0}/{1}/{2}', parameters('parentAccountName'), parameters('databaseName'), 'learning_policies')]",
+              "tags": "[parameters('tags')]",
+              "properties": {
+                "resource": {
+                  "id": "learning_policies",
+                  "partitionKey": {
+                    "paths": [
+                      "/agent_id"
+                    ],
+                    "kind": "Hash",
+                    "version": 2
+                  },
+                  "indexingPolicy": {
+                    "automatic": true,
+                    "indexingMode": "consistent",
+                    "includedPaths": [
+                      {
+                        "path": "/*"
+                      }
+                    ],
+                    "excludedPaths": [
+                      {
+                        "path": "/\"_etag\"/?"
+                      }
+                    ]
+                  }
+                }
+              },
+              "dependsOn": [
+                "learningDatabase"
               ]
             },
             "rewardsContainer": {
               "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
               "apiVersion": "2024-05-15",
-              "name": "[format('{0}/{1}/{2}', parameters('parentAccountName'), parameters('databaseName'), 'rl_rewards')]",
+              "name": "[format('{0}/{1}/{2}', parameters('parentAccountName'), parameters('databaseName'), 'learning_rewards')]",
               "tags": "[parameters('tags')]",
               "properties": {
                 "resource": {
-                  "id": "rl_rewards",
+                  "id": "learning_rewards",
                   "partitionKey": {
                     "paths": [
                       "/agent_id"
@@ -6441,17 +6950,17 @@
                 }
               },
               "dependsOn": [
-                "lightningDatabase"
+                "learningDatabase"
               ]
             },
-            "datasetsContainer": {
+            "runsContainer": {
               "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
               "apiVersion": "2024-05-15",
-              "name": "[format('{0}/{1}/{2}', parameters('parentAccountName'), parameters('databaseName'), 'rl_datasets')]",
+              "name": "[format('{0}/{1}/{2}', parameters('parentAccountName'), parameters('databaseName'), 'learning_runs')]",
               "tags": "[parameters('tags')]",
               "properties": {
                 "resource": {
-                  "id": "rl_datasets",
+                  "id": "learning_runs",
                   "partitionKey": {
                     "paths": [
                       "/agent_id"
@@ -6476,77 +6985,7 @@
                 }
               },
               "dependsOn": [
-                "lightningDatabase"
-              ]
-            },
-            "trainingRunsContainer": {
-              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
-              "apiVersion": "2024-05-15",
-              "name": "[format('{0}/{1}/{2}', parameters('parentAccountName'), parameters('databaseName'), 'rl_training_runs')]",
-              "tags": "[parameters('tags')]",
-              "properties": {
-                "resource": {
-                  "id": "rl_training_runs",
-                  "partitionKey": {
-                    "paths": [
-                      "/agent_id"
-                    ],
-                    "kind": "Hash",
-                    "version": 2
-                  },
-                  "indexingPolicy": {
-                    "automatic": true,
-                    "indexingMode": "consistent",
-                    "includedPaths": [
-                      {
-                        "path": "/*"
-                      }
-                    ],
-                    "excludedPaths": [
-                      {
-                        "path": "/\"_etag\"/?"
-                      }
-                    ]
-                  }
-                }
-              },
-              "dependsOn": [
-                "lightningDatabase"
-              ]
-            },
-            "deploymentsContainer": {
-              "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
-              "apiVersion": "2024-05-15",
-              "name": "[format('{0}/{1}/{2}', parameters('parentAccountName'), parameters('databaseName'), 'rl_deployments')]",
-              "tags": "[parameters('tags')]",
-              "properties": {
-                "resource": {
-                  "id": "rl_deployments",
-                  "partitionKey": {
-                    "paths": [
-                      "/agent_id"
-                    ],
-                    "kind": "Hash",
-                    "version": 2
-                  },
-                  "indexingPolicy": {
-                    "automatic": true,
-                    "indexingMode": "consistent",
-                    "includedPaths": [
-                      {
-                        "path": "/*"
-                      }
-                    ],
-                    "excludedPaths": [
-                      {
-                        "path": "/\"_etag\"/?"
-                      }
-                    ]
-                  }
-                }
-              },
-              "dependsOn": [
-                "lightningDatabase"
+                "learningDatabase"
               ]
             }
           },
@@ -6557,23 +6996,23 @@
             },
             "episodesContainerName": {
               "type": "string",
-              "value": "rl_episodes"
+              "value": "learning_episodes"
+            },
+            "metricsContainerName": {
+              "type": "string",
+              "value": "learning_metrics"
+            },
+            "policiesContainerName": {
+              "type": "string",
+              "value": "learning_policies"
             },
             "rewardsContainerName": {
               "type": "string",
-              "value": "rl_rewards"
+              "value": "learning_rewards"
             },
-            "datasetsContainerName": {
+            "runsContainerName": {
               "type": "string",
-              "value": "rl_datasets"
-            },
-            "trainingRunsContainerName": {
-              "type": "string",
-              "value": "rl_training_runs"
-            },
-            "deploymentsContainerName": {
-              "type": "string",
-              "value": "rl_deployments"
+              "value": "learning_runs"
             }
           }
         }
@@ -7060,518 +7499,6 @@
         "aksCluster",
         "cosmosAccount",
         "rg"
-      ]
-    },
-    "searchService": {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2022-09-01",
-      "name": "searchService",
-      "resourceGroup": "[if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "name": {
-            "value": "[variables('searchResourceName')]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "tags": {
-            "value": "[variables('tags')]"
-          },
-          "sku": {
-            "value": "basic"
-          },
-          "replicaCount": {
-            "value": 1
-          },
-          "partitionCount": {
-            "value": 1
-          },
-          "semanticSearch": {
-            "value": "standard"
-          },
-          "publicNetworkAccess": "[if(parameters('vnetEnabled'), createObject('value', 'Disabled'), createObject('value', 'Enabled'))]",
-          "disableLocalAuth": {
-            "value": true
-          },
-          "enablePrivateEndpoint": {
-            "value": "[parameters('vnetEnabled')]"
-          },
-          "virtualNetworkName": "[if(parameters('vnetEnabled'), createObject('value', variables('serviceVirtualNetworkName')), createObject('value', ''))]",
-          "subnetName": "[if(parameters('vnetEnabled'), createObject('value', variables('serviceVirtualNetworkPrivateEndpointSubnetName')), createObject('value', ''))]"
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "languageVersion": "2.1-experimental",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_EXPERIMENTAL_WARNING": "This template uses ARM features that are experimental. Experimental features should be enabled for testing purposes only, as there are no guarantees about the quality or stability of these features. Do not enable these settings for any production usage, or your production environment may be subject to breaking.",
-            "_EXPERIMENTAL_FEATURES_ENABLED": [
-              "Extensibility"
-            ],
-            "_generator": {
-              "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "1766752601647578087"
-            }
-          },
-          "parameters": {
-            "name": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the Azure AI Search service"
-              }
-            },
-            "location": {
-              "type": "string",
-              "defaultValue": "[resourceGroup().location]",
-              "metadata": {
-                "description": "Location for the resource"
-              }
-            },
-            "tags": {
-              "type": "object",
-              "defaultValue": {},
-              "metadata": {
-                "description": "Tags for the resource"
-              }
-            },
-            "sku": {
-              "type": "string",
-              "defaultValue": "basic",
-              "allowedValues": [
-                "basic",
-                "standard",
-                "standard2",
-                "standard3"
-              ],
-              "metadata": {
-                "description": "SKU for the search service"
-              }
-            },
-            "replicaCount": {
-              "type": "int",
-              "defaultValue": 1,
-              "minValue": 1,
-              "maxValue": 12,
-              "metadata": {
-                "description": "Number of replicas (1-12 for standard, 1-3 for basic)"
-              }
-            },
-            "partitionCount": {
-              "type": "int",
-              "defaultValue": 1,
-              "allowedValues": [
-                1,
-                2,
-                3,
-                4,
-                6,
-                12
-              ],
-              "metadata": {
-                "description": "Number of partitions (1, 2, 3, 4, 6, or 12)"
-              }
-            },
-            "semanticSearch": {
-              "type": "string",
-              "defaultValue": "standard",
-              "allowedValues": [
-                "disabled",
-                "free",
-                "standard"
-              ],
-              "metadata": {
-                "description": "Enable semantic search capability"
-              }
-            },
-            "publicNetworkAccess": {
-              "type": "string",
-              "defaultValue": "Enabled",
-              "allowedValues": [
-                "Enabled",
-                "Disabled"
-              ],
-              "metadata": {
-                "description": "Public network access setting"
-              }
-            },
-            "disableLocalAuth": {
-              "type": "bool",
-              "defaultValue": true,
-              "metadata": {
-                "description": "Disable local authentication (API keys)"
-              }
-            },
-            "enablePrivateEndpoint": {
-              "type": "bool",
-              "defaultValue": false,
-              "metadata": {
-                "description": "Enable private endpoint"
-              }
-            },
-            "virtualNetworkName": {
-              "type": "string",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Virtual network name for private endpoint"
-              }
-            },
-            "subnetName": {
-              "type": "string",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Subnet name for private endpoint"
-              }
-            }
-          },
-          "resources": {
-            "searchService": {
-              "type": "Microsoft.Search/searchServices",
-              "apiVersion": "2024-06-01-preview",
-              "name": "[parameters('name')]",
-              "location": "[parameters('location')]",
-              "tags": "[parameters('tags')]",
-              "identity": {
-                "type": "SystemAssigned"
-              },
-              "sku": {
-                "name": "[parameters('sku')]"
-              },
-              "properties": {
-                "replicaCount": "[parameters('replicaCount')]",
-                "partitionCount": "[parameters('partitionCount')]",
-                "hostingMode": "default",
-                "publicNetworkAccess": "[parameters('publicNetworkAccess')]",
-                "networkRuleSet": {
-                  "bypass": "AzurePortal"
-                },
-                "disableLocalAuth": "[parameters('disableLocalAuth')]",
-                "authOptions": "[if(parameters('disableLocalAuth'), null(), createObject('aadOrApiKey', createObject('aadAuthFailureMode', 'http401WithBearerChallenge')))]",
-                "semanticSearch": "[parameters('semanticSearch')]"
-              }
-            },
-            "privateDnsZone": {
-              "condition": "[parameters('enablePrivateEndpoint')]",
-              "type": "Microsoft.Network/privateDnsZones",
-              "apiVersion": "2024-06-01",
-              "name": "privatelink.search.windows.net",
-              "location": "global",
-              "tags": "[parameters('tags')]"
-            },
-            "privateDnsZoneLink": {
-              "condition": "[and(parameters('enablePrivateEndpoint'), not(empty(parameters('virtualNetworkName'))))]",
-              "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
-              "apiVersion": "2024-06-01",
-              "name": "[format('{0}/{1}', 'privatelink.search.windows.net', format('{0}-dns-link', parameters('name')))]",
-              "location": "global",
-              "properties": {
-                "registrationEnabled": false,
-                "virtualNetwork": {
-                  "id": "[resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]"
-                }
-              },
-              "dependsOn": [
-                "privateDnsZone"
-              ]
-            },
-            "privateEndpoint": {
-              "condition": "[and(and(parameters('enablePrivateEndpoint'), not(empty(parameters('virtualNetworkName')))), not(empty(parameters('subnetName'))))]",
-              "type": "Microsoft.Network/privateEndpoints",
-              "apiVersion": "2024-05-01",
-              "name": "[format('{0}-pe', parameters('name'))]",
-              "location": "[parameters('location')]",
-              "tags": "[parameters('tags')]",
-              "properties": {
-                "subnet": {
-                  "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('virtualNetworkName'), parameters('subnetName'))]"
-                },
-                "privateLinkServiceConnections": [
-                  {
-                    "name": "[format('{0}-psc', parameters('name'))]",
-                    "properties": {
-                      "privateLinkServiceId": "[resourceId('Microsoft.Search/searchServices', parameters('name'))]",
-                      "groupIds": [
-                        "searchService"
-                      ]
-                    }
-                  }
-                ]
-              },
-              "dependsOn": [
-                "searchService"
-              ]
-            },
-            "privateDnsZoneGroup": {
-              "condition": "[parameters('enablePrivateEndpoint')]",
-              "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-              "apiVersion": "2024-05-01",
-              "name": "[format('{0}/{1}', format('{0}-pe', parameters('name')), 'default')]",
-              "properties": {
-                "privateDnsZoneConfigs": [
-                  {
-                    "name": "privatelink-search-windows-net",
-                    "properties": {
-                      "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', 'privatelink.search.windows.net')]"
-                    }
-                  }
-                ]
-              },
-              "dependsOn": [
-                "privateDnsZone",
-                "privateEndpoint"
-              ]
-            }
-          },
-          "outputs": {
-            "name": {
-              "type": "string",
-              "value": "[parameters('name')]"
-            },
-            "endpoint": {
-              "type": "string",
-              "value": "[format('https://{0}.search.windows.net', parameters('name'))]"
-            },
-            "principalId": {
-              "type": "string",
-              "value": "[reference('searchService', '2024-06-01-preview', 'full').identity.principalId]"
-            },
-            "resourceId": {
-              "type": "string",
-              "value": "[resourceId('Microsoft.Search/searchServices', parameters('name'))]"
-            }
-          }
-        }
-      },
-      "dependsOn": [
-        "rg",
-        "serviceVirtualNetwork"
-      ]
-    },
-    "searchRoleAssignmentMcp": {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2022-09-01",
-      "name": "searchRoleAssignmentMcp",
-      "resourceGroup": "[if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "searchServiceName": {
-            "value": "[reference('searchService').outputs.name.value]"
-          },
-          "roleDefinitionID": {
-            "value": "[variables('SearchIndexDataContributor')]"
-          },
-          "principalID": {
-            "value": "[reference('mcpUserAssignedIdentity').outputs.identityPrincipalId.value]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "languageVersion": "2.1-experimental",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_EXPERIMENTAL_WARNING": "This template uses ARM features that are experimental. Experimental features should be enabled for testing purposes only, as there are no guarantees about the quality or stability of these features. Do not enable these settings for any production usage, or your production environment may be subject to breaking.",
-            "_EXPERIMENTAL_FEATURES_ENABLED": [
-              "Extensibility"
-            ],
-            "_generator": {
-              "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "18042041442813590893"
-            }
-          },
-          "parameters": {
-            "searchServiceName": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the Azure AI Search service"
-              }
-            },
-            "roleDefinitionID": {
-              "type": "string",
-              "metadata": {
-                "description": "Role Definition ID to assign"
-              }
-            },
-            "principalID": {
-              "type": "string",
-              "metadata": {
-                "description": "Principal ID to assign the role to"
-              }
-            },
-            "principalType": {
-              "type": "string",
-              "defaultValue": "ServicePrincipal",
-              "allowedValues": [
-                "ServicePrincipal",
-                "User",
-                "Group"
-              ],
-              "metadata": {
-                "description": "Principal type (ServicePrincipal, User, Group)"
-              }
-            },
-            "nameSuffix": {
-              "type": "string",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Optional suffix to make role assignment name unique across deployments"
-              }
-            }
-          },
-          "resources": {
-            "searchService": {
-              "existing": true,
-              "type": "Microsoft.Search/searchServices",
-              "apiVersion": "2024-06-01-preview",
-              "name": "[parameters('searchServiceName')]"
-            },
-            "roleAssignment": {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[format('Microsoft.Search/searchServices/{0}', parameters('searchServiceName'))]",
-              "name": "[if(empty(parameters('nameSuffix')), guid(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), parameters('principalID'), parameters('roleDefinitionID')), guid(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), parameters('principalID'), parameters('roleDefinitionID'), parameters('nameSuffix')))]",
-              "properties": {
-                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', parameters('roleDefinitionID'))]",
-                "principalId": "[parameters('principalID')]",
-                "principalType": "[parameters('principalType')]"
-              },
-              "dependsOn": [
-                "searchService"
-              ]
-            }
-          },
-          "outputs": {
-            "roleAssignmentId": {
-              "type": "string",
-              "value": "[extensionResourceId(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), 'Microsoft.Authorization/roleAssignments', if(empty(parameters('nameSuffix')), guid(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), parameters('principalID'), parameters('roleDefinitionID')), guid(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), parameters('principalID'), parameters('roleDefinitionID'), parameters('nameSuffix'))))]"
-            }
-          }
-        }
-      },
-      "dependsOn": [
-        "mcpUserAssignedIdentity",
-        "rg",
-        "searchService"
-      ]
-    },
-    "searchServiceRoleAssignmentMcp": {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2022-09-01",
-      "name": "searchServiceRoleAssignmentMcp",
-      "resourceGroup": "[if(not(empty(parameters('resourceGroupName'))), parameters('resourceGroupName'), format('{0}{1}', variables('abbrs').resourcesResourceGroups, parameters('environmentName')))]",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "searchServiceName": {
-            "value": "[reference('searchService').outputs.name.value]"
-          },
-          "roleDefinitionID": {
-            "value": "[variables('SearchServiceContributor')]"
-          },
-          "principalID": {
-            "value": "[reference('mcpUserAssignedIdentity').outputs.identityPrincipalId.value]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "languageVersion": "2.1-experimental",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_EXPERIMENTAL_WARNING": "This template uses ARM features that are experimental. Experimental features should be enabled for testing purposes only, as there are no guarantees about the quality or stability of these features. Do not enable these settings for any production usage, or your production environment may be subject to breaking.",
-            "_EXPERIMENTAL_FEATURES_ENABLED": [
-              "Extensibility"
-            ],
-            "_generator": {
-              "name": "bicep",
-              "version": "0.28.1.47646",
-              "templateHash": "18042041442813590893"
-            }
-          },
-          "parameters": {
-            "searchServiceName": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the Azure AI Search service"
-              }
-            },
-            "roleDefinitionID": {
-              "type": "string",
-              "metadata": {
-                "description": "Role Definition ID to assign"
-              }
-            },
-            "principalID": {
-              "type": "string",
-              "metadata": {
-                "description": "Principal ID to assign the role to"
-              }
-            },
-            "principalType": {
-              "type": "string",
-              "defaultValue": "ServicePrincipal",
-              "allowedValues": [
-                "ServicePrincipal",
-                "User",
-                "Group"
-              ],
-              "metadata": {
-                "description": "Principal type (ServicePrincipal, User, Group)"
-              }
-            },
-            "nameSuffix": {
-              "type": "string",
-              "defaultValue": "",
-              "metadata": {
-                "description": "Optional suffix to make role assignment name unique across deployments"
-              }
-            }
-          },
-          "resources": {
-            "searchService": {
-              "existing": true,
-              "type": "Microsoft.Search/searchServices",
-              "apiVersion": "2024-06-01-preview",
-              "name": "[parameters('searchServiceName')]"
-            },
-            "roleAssignment": {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[format('Microsoft.Search/searchServices/{0}', parameters('searchServiceName'))]",
-              "name": "[if(empty(parameters('nameSuffix')), guid(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), parameters('principalID'), parameters('roleDefinitionID')), guid(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), parameters('principalID'), parameters('roleDefinitionID'), parameters('nameSuffix')))]",
-              "properties": {
-                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', parameters('roleDefinitionID'))]",
-                "principalId": "[parameters('principalID')]",
-                "principalType": "[parameters('principalType')]"
-              },
-              "dependsOn": [
-                "searchService"
-              ]
-            }
-          },
-          "outputs": {
-            "roleAssignmentId": {
-              "type": "string",
-              "value": "[extensionResourceId(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), 'Microsoft.Authorization/roleAssignments', if(empty(parameters('nameSuffix')), guid(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), parameters('principalID'), parameters('roleDefinitionID')), guid(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), parameters('principalID'), parameters('roleDefinitionID'), parameters('nameSuffix'))))]"
-            }
-          }
-        }
-      },
-      "dependsOn": [
-        "mcpUserAssignedIdentity",
-        "rg",
-        "searchService"
       ]
     },
     "monitoring": {
@@ -8981,9 +8908,6 @@
           "cosmosAccountName": {
             "value": "[reference('cosmosAccount').outputs.name.value]"
           },
-          "searchServiceName": {
-            "value": "[reference('searchService').outputs.name.value]"
-          },
           "storageAccountName": {
             "value": "[reference('storage').outputs.name.value]"
           },
@@ -9003,7 +8927,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.28.1.47646",
-              "templateHash": "6052450807854338895"
+              "templateHash": "9994120027541022896"
             }
           },
           "parameters": {
@@ -9017,12 +8941,6 @@
               "type": "string",
               "metadata": {
                 "description": "Cosmos DB account name"
-              }
-            },
-            "searchServiceName": {
-              "type": "string",
-              "metadata": {
-                "description": "Azure AI Search service name"
               }
             },
             "storageAccountName": {
@@ -9047,8 +8965,6 @@
           },
           "variables": {
             "CosmosDBDataContributor": "00000000-0000-0000-0000-000000000002",
-            "SearchIndexDataContributor": "8ebe5a00-799e-43f5-93ac-243d3dce84a7",
-            "SearchServiceContributor": "7ca78c08-252a-4471-8644-bb5ff32d4ba0",
             "StorageBlobDataOwner": "b7e6dc6d-f1e8-4753-8033-0f276bb0955b",
             "StorageQueueDataContributor": "974c5e8b-45b9-4653-ba55-5f855dd0fb88",
             "CognitiveServicesOpenAIUser": "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd",
@@ -9072,40 +8988,6 @@
               },
               "dependsOn": [
                 "cosmosAccount"
-              ]
-            },
-            "searchService": {
-              "existing": true,
-              "type": "Microsoft.Search/searchServices",
-              "apiVersion": "2024-06-01-preview",
-              "name": "[parameters('searchServiceName')]"
-            },
-            "searchIndexDataContributorAgent": {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[format('Microsoft.Search/searchServices/{0}', parameters('searchServiceName'))]",
-              "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), parameters('agentPrincipalId'), variables('SearchIndexDataContributor'), parameters('deploymentSuffix'))]",
-              "properties": {
-                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', variables('SearchIndexDataContributor'))]",
-                "principalId": "[parameters('agentPrincipalId')]",
-                "principalType": "ServicePrincipal"
-              },
-              "dependsOn": [
-                "searchService"
-              ]
-            },
-            "searchServiceContributorAgent": {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[format('Microsoft.Search/searchServices/{0}', parameters('searchServiceName'))]",
-              "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), parameters('agentPrincipalId'), variables('SearchServiceContributor'), parameters('deploymentSuffix'))]",
-              "properties": {
-                "roleDefinitionId": "[resourceId('Microsoft.Authorization/roleDefinitions', variables('SearchServiceContributor'))]",
-                "principalId": "[parameters('agentPrincipalId')]",
-                "principalType": "ServicePrincipal"
-              },
-              "dependsOn": [
-                "searchService"
               ]
             },
             "storageAccount": {
@@ -9182,14 +9064,6 @@
               "type": "string",
               "value": "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments', parameters('cosmosAccountName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosAccountName')), parameters('agentPrincipalId'), variables('CosmosDBDataContributor'), parameters('deploymentSuffix')))]"
             },
-            "searchIndexRoleAssignmentId": {
-              "type": "string",
-              "value": "[extensionResourceId(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), parameters('agentPrincipalId'), variables('SearchIndexDataContributor'), parameters('deploymentSuffix')))]"
-            },
-            "searchServiceRoleAssignmentId": {
-              "type": "string",
-              "value": "[extensionResourceId(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Search/searchServices', parameters('searchServiceName')), parameters('agentPrincipalId'), variables('SearchServiceContributor'), parameters('deploymentSuffix')))]"
-            },
             "storageBlobRoleAssignmentId": {
               "type": "string",
               "value": "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), parameters('agentPrincipalId'), variables('StorageBlobDataOwner'), parameters('deploymentSuffix')))]"
@@ -9214,7 +9088,6 @@
         "digitalQualityOrchestratorAgentIdentity",
         "foundry",
         "rg",
-        "searchService",
         "storage"
       ]
     },
@@ -10703,25 +10576,25 @@
       "type": "string",
       "value": "[reference('cosmosCohortsContainer').outputs.name.value]"
     },
-    "COSMOS_ACCOUNT_URI": {
+    "POSTGRES_SERVER_NAME": {
       "type": "string",
-      "value": "[reference('cosmosAccount').outputs.endpoint.value]"
+      "value": "[reference('cqlPostgres').outputs.serverName.value]"
     },
-    "COSMOS_DATABASE_NAME": {
+    "POSTGRES_DATABASE_NAME": {
       "type": "string",
-      "value": "[reference('lightningCosmos').outputs.databaseName.value]"
+      "value": "[reference('cqlPostgres').outputs.databaseName.value]"
     },
-    "AZURE_SEARCH_ENDPOINT": {
+    "POSTGRES_SERVER_FQDN": {
       "type": "string",
-      "value": "[reference('searchService').outputs.endpoint.value]"
+      "value": "[reference('cqlPostgres').outputs.fullyQualifiedDomainName.value]"
     },
-    "AZURE_SEARCH_INDEX_NAME": {
+    "POSTGRES_USER": {
       "type": "string",
-      "value": "[parameters('searchIndexName')]"
+      "value": "[parameters('postgresAdministratorLogin')]"
     },
-    "AZURE_SEARCH_SERVICE_NAME": {
+    "DATABASE_URL": {
       "type": "string",
-      "value": "[reference('searchService').outputs.name.value]"
+      "value": "[format('postgresql://{0}@{1}:5432/{2}?sslmode=require', uriComponent(parameters('postgresAdministratorLogin')), reference('cqlPostgres').outputs.fullyQualifiedDomainName.value, uriComponent(reference('cqlPostgres').outputs.databaseName.value))]"
     },
     "AGENT_IDENTITY_ENABLED": {
       "type": "bool",

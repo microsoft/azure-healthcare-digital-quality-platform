@@ -20,14 +20,14 @@
                 "Measure": {
                   "Expression": {
                     "SourceRef": {
-                      "Entity": "SubmissionHistory"
+                      "Entity": "ProcessingEvents"
                     }
                   },
-                  "Property": "Measures processed"
+                  "Property": "Processing success rate"
                 }
               },
-              "queryRef": "SubmissionHistory.Measures processed",
-              "nativeQueryRef": "Measures processed"
+              "queryRef": "ProcessingEvents.Processing success rate",
+              "nativeQueryRef": "Processing success rate"
             }
           ]
         }

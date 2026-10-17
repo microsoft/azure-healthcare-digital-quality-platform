@@ -1,0 +1,14 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "subtitleText",
+  "position": { "x": 500, "y": 58, "z": 10, "height": 24, "width": 756, "tabOrder": 1 },
+  "visual": {
+    "visualType": "textbox",
+    "objects": { "general": [{ "properties": { "paragraphs": [{ "textRuns": [{ "value": "Metric definitions, data provenance, and refresh behavior", "textStyle": { "fontFamily": "Segoe UI", "fontSize": "12px", "color": "#B9D9EB" } }], "horizontalTextAlignment": "right" }] } }] },
+    "visualContainerObjects": {
+      "background": [{ "properties": { "show": { "expr": { "Literal": { "Value": "false" } } } } }],
+      "border": [{ "properties": { "show": { "expr": { "Literal": { "Value": "false" } } } } }],
+      "padding": [{ "properties": { "top": { "expr": { "Literal": { "Value": "0D" } } }, "bottom": { "expr": { "Literal": { "Value": "0D" } } }, "left": { "expr": { "Literal": { "Value": "0D" } } }, "right": { "expr": { "Literal": { "Value": "0D" } } } } }]
+    }
+  }
+}

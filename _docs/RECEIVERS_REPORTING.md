@@ -53,26 +53,32 @@ If SQL is unavailable, the receiver still completes Cosmos DB persistence and lo
 
 ## Power BI dashboard
 
-Open `receivers/powerbi/ReceiverAnalytics.pbip` in Power BI Desktop. The project contains an Executive View with KPI placeholders for:
+Open `receivers/powerbi/ReceiverAnalytics.pbip` in Power BI Desktop. The project contains two report pages:
 
-- Total submissions
-- Active submitters
-- Programs onboarded
-- Measures processed
-- Submission trends
-- Numerator / denominator performance
-- Operations and validation detail
+- **Receiver Analytics** - an executive operations and quality view with total submissions, active submitters, acceptance rate, processing success rate, submission trend, denominator-weighted reported performance by measure, and recent processing-event detail.
+- **Report Information** - an in-report guide to metric definitions, Azure SQL data provenance, model parameters, refresh behavior, and interpretation limits.
 
 The semantic model includes a `RowCount` column that is always `1`; the `Total submissions` measure sums it to count submission records consistently after Power Query transformations.
+
+The executive page uses three Azure SQL fact tables:
+
+- `dq.SubmissionHistory` for participation, submission status, program, submitter, measure, cohort, payload type, and received time.
+- `dq.MeasureReports` for reported numerator, denominator, exclusions, report context, measurement period, and received time.
+- `dq.ProcessingEvents` for processing status, correlation, latency, and error context.
+
+`Weighted reported rate` divides the total reported numerator by the total reported denominator in the current measure context. Compare this rate within one measure because population definitions and whether higher or lower is favorable differ across measures. Do not interpret it as a cross-measure composite score.
+
+The report does not calculate MIPS final score, benchmark points, eligibility, targeted review, or payment adjustment. Those outcomes require additional upstream data and program rules.
 
 The semantic model parameters are defined in `ReceiverAnalytics.SemanticModel/definition/expressions.tmdl`:
 
 - `SqlServerName` → set to `AZURE_SQL_SERVER_FQDN`
 - `SqlDatabaseName` → set to `AZURE_SQL_DATABASE_NAME`
+- `UseSampleData` → keep `true` for the built-in offline demonstration data or set `false` to query Azure SQL
 
-The checked-in values use `#{AZURE_SQL_SERVER_FQDN}` and `#{AZURE_SQL_DATABASE_NAME}` placeholders. Replace them manually in Power BI Desktop or run token substitution in your deployment pipeline before publishing.
+Source control keeps `UseSampleData=true` so the PBIP renders without Azure credentials. Before publishing against live data, update the SQL parameters, set `UseSampleData=false`, configure managed identity or service principal access where supported, and validate a complete refresh.
 
-Publish the report to a Fabric workspace after updating the parameters and validating refresh credentials. Use managed identity or service principal access to Azure SQL where supported by your Fabric tenant.
+Publish the report to a Fabric workspace only after the Azure SQL parameters, credentials, and Service refresh have been validated.
 
 ## Demo data
 

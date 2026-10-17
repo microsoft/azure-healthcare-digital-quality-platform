@@ -32,6 +32,38 @@
             }
           ]
         },
+        "Tooltips": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "MeasureReports"
+                    }
+                  },
+                  "Property": "Total numerator"
+                }
+              },
+              "queryRef": "MeasureReports.Total numerator",
+              "nativeQueryRef": "Total numerator"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "MeasureReports"
+                    }
+                  },
+                  "Property": "Total denominator"
+                }
+              },
+              "queryRef": "MeasureReports.Total denominator",
+              "nativeQueryRef": "Total denominator"
+            }
+          ]
+        },
         "Y": {
           "projections": [
             {
@@ -42,15 +74,44 @@
                       "Entity": "MeasureReports"
                     }
                   },
-                  "Property": "Performance rate"
+                  "Property": "Weighted reported rate"
                 }
               },
-              "queryRef": "MeasureReports.Performance rate",
-              "nativeQueryRef": "Performance rate"
+              "queryRef": "MeasureReports.Weighted reported rate",
+              "nativeQueryRef": "Weighted reported rate"
             }
           ]
         }
       }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "show": {
+              "expr": {
+                "Literal": {
+                  "Value": "true"
+                }
+              }
+            },
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Reported performance by measure'"
+                }
+              }
+            },
+            "titleWrap": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

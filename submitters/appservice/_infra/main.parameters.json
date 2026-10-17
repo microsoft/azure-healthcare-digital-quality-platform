@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "${AZURE_ENV_NAME}"
+    },
+    "location": {
+      "value": "${AZURE_LOCATION}"
+    },
+    "developmentMode": {
+      "value": "${DEVELOPMENT_MODE=false}"
+    },
+    "orchestratorBaseUrl": {
+      "value": "${ORCHESTRATOR_BASE_URL=}"
+    },
+    "cosmosDatabaseName": {
+      "value": "${COSMOSDB_DATABASE=dq}"
+    },
+    "appServicePlanSkuName": {
+      "value": "${APP_SERVICE_PLAN_SKU=B2}"
+    },
+    "developerPrincipalId": {
+      "value": "${AZURE_PRINCIPAL_ID=}"
+    }
+  }
+}

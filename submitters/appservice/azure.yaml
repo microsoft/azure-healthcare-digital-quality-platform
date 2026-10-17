@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+# Headless Submitters App Service stack (Docker-free / AKS-free).
+#
+# This is the deployment path for customers such as MultiCare that cannot run
+# containers or Kubernetes. It provisions a Linux Azure App Service running the
+# existing FastAPI submitter backend as *native* Python (Oryx build from
+# source — no container image, no ACR, no AKS), plus the Cosmos DB, Application
+# Insights and managed identity the backend needs.
+#
+# Layout:
+#   submitters/appservice/azure.yaml        <- this file
+#   submitters/appservice/_infra/main.bicep <- subscription-scoped entry point
+#   submitters/backend/                     <- Python source deployed here (shared with the AKS stack)
+#
+# Deploy:
+#   cd submitters/appservice
+#   azd auth login
+#   azd up                      # provision infra + publish backend source
+#
+# main.bicep names the resource group "rg-${environmentName}", so an azd env
+# named "dq-submitters-appsvc" lands in "rg-dq-submitters-appsvc".
+#
+# The `submitter` service points at ../backend (the same source the AKS
+# Dockerfile builds). azd zips that folder and lets App Service's Oryx builder
+# pip-install requirements.txt; the Web App startup command
+# (set in _infra/resources.bicep) launches uvicorn against src/main.py.
+#
+# Useful azd env vars (set with `azd env set <NAME> <VALUE>` before `azd up`):
+#   DEVELOPMENT_MODE       "false" (default) enforces Entra ID auth; "true" bypasses it for smoke tests.
+#   ORCHESTRATOR_BASE_URL  external Digital Quality Orchestrator URL, if the customer runs one.
+#   APP_SERVICE_PLAN_SKU   App Service Plan SKU (default B2).
+#
+# After deploy, seed the catalog/patients by calling the published API (see the
+# backend's POST /api/patient and _data/*.json), e.g.:
+#   python submitters/backend/src/load_patients.py _data/patients.json   (point it at $SUBMITTER_API_URL)
+
+name: dq-submitters-appservice
+metadata:
+  template: dq-submitters-appservice@1.0.0
+
+infra:
+  provider: bicep
+  path: _infra
+  module: main
+
+services:
+  submitter:
+    project: ../backend
+    language: py
+    host: appservice
